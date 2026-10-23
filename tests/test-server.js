@@ -233,12 +233,84 @@ const server = http.createServer((req, res) => {
           </div>
         </div>
 
+        <!-- Question 5: Moodle multichoice with checkboxes (Cat breeds from user screenshot) -->
+        <div class="que multichoice" id="q5">
+          <div class="qtext">Which of these are genuine breeds of cat?</div>
+          <div class="formulation">
+            <div class="answer">
+              <div><input type="checkbox" name="q5_a" id="q5_a" value="A"><label for="q5_a">Sphinx</label></div>
+              <div><input type="checkbox" name="q5_b" id="q5_b" value="B"><label for="q5_b">Siberian</label></div>
+              <div><input type="checkbox" name="q5_c" id="q5_c" value="C"><label for="q5_c">Burmese</label></div>
+              <div><input type="checkbox" name="q5_d" id="q5_d" value="D"><label for="q5_d">Ragdoll</label></div>
+            </div>
+          </div>
+        </div>
+
         <!-- Moodle Finish Attempt Navigation -->
         <div style="margin-top: 30px;">
           <form action="/mod/quiz/summary.php" method="GET">
             <input type="hidden" name="id" value="${quizId}">
             <input type="submit" value="Finish attempt ..." class="btn btn-secondary" id="btn-finish-attempt">
           </form>
+        </div>
+      </body>
+      </html>
+    `);
+    return;
+  }
+
+  // ── 4b. Paginated Quiz (1 Question per page flow) ──
+  if (path === '/mod/quiz/paginated.php') {
+    const quizId = parsed.query.id || '201';
+    const pageNum = parseInt(parsed.query.page || '0', 10);
+
+    const questions = [
+      { text: 'Which platform is known for professional career networking?', options: ['Facebook', 'LinkedIn', 'TikTok'], correct: 'LinkedIn' },
+      { text: 'Where does the Manx cat originate?', options: ['Isle of Manx', 'Isle of Man', 'Manchester, England'], correct: 'Isle of Man' },
+      { text: 'Jan is vegetarian. Is it Ok for Jan to make their cat a vegetarian too?', options: ['No - cats must have meat in their diets.', 'Yes, as long as Jan gives them a balanced diet.'], correct: 'No - cats must have meat in their diets.' }
+    ];
+
+    const currentQ = questions[pageNum] || questions[0];
+    const isLastPage = pageNum >= questions.length - 1;
+
+    res.end(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Paginated Quiz ${quizId} - Page ${pageNum + 1}</title>
+        <style>
+          body { font-family: sans-serif; padding: 20px; }
+          .que { border: 1px solid #d1d5db; border-radius: 8px; padding: 16px; margin-bottom: 20px; background: #fff; }
+          .mod_quiz-next-nav { padding: 8px 16px; background: #2563eb; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 15px; }
+        </style>
+      </head>
+      <body>
+        <h2>Quiz ${quizId} (Page ${pageNum + 1} of ${questions.length})</h2>
+
+        <div class="que multichoice" id="q_paginated">
+          <div class="qtext">${currentQ.text}</div>
+          <div class="formulation">
+            <div class="answer">
+              ${currentQ.options.map((opt, i) => `
+                <div><input type="radio" name="q_p" id="opt_${i}" value="${String.fromCharCode(65 + i)}"><label for="opt_${i}">${opt}</label></div>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top: 30px;">
+          ${!isLastPage ? `
+            <form action="/mod/quiz/paginated.php" method="GET">
+              <input type="hidden" name="id" value="${quizId}">
+              <input type="hidden" name="page" value="${pageNum + 1}">
+              <input type="submit" name="next" value="Next page" class="mod_quiz-next-nav btn btn-primary" id="btn-next-page">
+            </form>
+          ` : `
+            <form action="/mod/quiz/summary.php" method="GET">
+              <input type="hidden" name="id" value="${quizId}">
+              <input type="submit" value="Finish attempt ..." class="btn btn-secondary" id="btn-finish-attempt">
+            </form>
+          `}
         </div>
       </body>
       </html>

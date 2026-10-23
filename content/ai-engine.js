@@ -206,16 +206,19 @@ window.AIEngine = {
       .map((opt, i) => `${String.fromCharCode(65 + i)}. ${opt.text}`)
       .join('\n');
 
-    let prompt = `Question: ${questionText}\n\nOptions:\n${formattedOptions}\n\n`;
-    if (imageBase64) {
-      prompt += `Note: An image or diagram is attached. Please inspect it carefully.\n\n`;
-    }
-    prompt += `Task: Select ALL correct options that apply (there may be more than one). Respond ONLY with uppercase option letters separated by commas (e.g. "A, C" or "B, D, E"). Do not include any explanations.`;
+    let prompt = `CRITICAL TASK: MULTIPLE-ANSWER QUESTION ("Select all that apply").\n\n` +
+      `Question: "${questionText}"\n\n` +
+      `Options:\n${formattedOptions}\n\n` +
+      (imageBase64 ? `Note: An image or diagram is attached. Please inspect it carefully.\n\n` : '') +
+      `IMPORTANT INSTRUCTIONS:\n` +
+      `1. Multiple options are correct. In many cases, 2, 3, or ALL options (${options.map((_, i) => String.fromCharCode(65 + i)).join(', ')}) are genuine valid answers!\n` +
+      `2. You must evaluate EACH option individually. If an option is a correct answer, include it.\n` +
+      `3. Respond ONLY with the comma-separated uppercase option letters of ALL correct choices, e.g. "A, B, C, D" or "A, C". No explanations or extra text.`;
 
     const result = await this.generateAnswer(
       prompt,
       imageBase64,
-      `You are an expert academic exam solver. Output ONLY uppercase option letters separated by commas, e.g. A, C.`
+      `You are an expert academic exam solver. In multi-select questions, multiple options are usually correct. Output ONLY uppercase option letters separated by commas, e.g. A, B, C, D.`
     );
 
     if (!result?.success) {
@@ -229,18 +232,63 @@ window.AIEngine = {
     }
 
     const answer = result.text || '';
-    const letters = [];
     const validLetters = new Set();
     for (let i = 0; i < options.length; i++) validLetters.add(String.fromCharCode(65 + i));
+    const matchedLetters = new Set();
 
-    const matches = answer.match(/[A-Z]/gi) || [];
-    for (const m of matches) {
-      const up = m.toUpperCase();
-      if (validLetters.has(up) && !letters.includes(up)) {
-        letters.push(up);
+    // 1. Check for JSON array or object
+    try {
+      const jsonMatch = answer.match(/(\[[\s\S]*?\]|\{[\s\S]*?\})/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (Array.isArray(parsed)) {
+          parsed.forEach(item => {
+            const str = String(item).trim().toUpperCase();
+            if (validLetters.has(str)) matchedLetters.add(str);
+            options.forEach((opt, idx) => {
+              const optClean = opt.text.toLowerCase().trim();
+              const itemClean = String(item).toLowerCase().trim();
+              if (itemClean.includes(optClean) || optClean.includes(itemClean)) {
+                matchedLetters.add(String.fromCharCode(65 + idx));
+              }
+            });
+          });
+        } else if (typeof parsed === 'object') {
+          Object.entries(parsed).forEach(([k, v]) => {
+            const upK = k.trim().toUpperCase();
+            if (validLetters.has(upK) && (v === true || String(v).toLowerCase() === 'true')) {
+              matchedLetters.add(upK);
+            }
+          });
+        }
       }
+    } catch (e) {}
+
+    // 2. Strict letter tokens (e.g. "A, B, C, D" or "A, B and D" or "[A, C]")
+    const letterMatches = answer.match(/\b([A-Z])\b/g) || [];
+    letterMatches.forEach(l => {
+      const up = l.toUpperCase();
+      if (validLetters.has(up)) matchedLetters.add(up);
+    });
+
+    // 3. Option text matching (if model output names e.g. "Sphinx, Siberian, Burmese, Ragdoll")
+    const lowerAnswer = answer.toLowerCase();
+    options.forEach((opt, idx) => {
+      const cleanOpt = opt.text.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').trim();
+      if (cleanOpt.length >= 3) {
+        const wordRegex = new RegExp(`(?:\\b|[^a-z0-9])${cleanOpt}(?:\\b|[^a-z0-9])`, 'i');
+        if (wordRegex.test(lowerAnswer) || lowerAnswer.includes(cleanOpt)) {
+          matchedLetters.add(String.fromCharCode(65 + idx));
+        }
+      }
+    });
+
+    // 4. "All of the above" / "All are correct"
+    if (lowerAnswer.includes('all of the above') || lowerAnswer.includes('all are correct') || lowerAnswer.includes('all options')) {
+      validLetters.forEach(l => matchedLetters.add(l));
     }
 
+    const letters = Array.from(matchedLetters).sort();
     if (letters.length > 0) {
       return { success: true, letters, warningNotice: result.warningNotice };
     }

@@ -583,18 +583,73 @@ window.UniversalSolver = {
     }
   },
 
-  // Locates the Next / Continue button (NOT submit/finish)
+  // Locates the Next / Continue / Next Page button (NOT submit/finish)
   findNextButton() {
+    // 1. Direct platform CSS class / name / ID selectors (Moodle, Canvas, Blackboard)
+    const explicitSelector = [
+      'input.mod_quiz-next-nav',
+      'button.mod_quiz-next-nav',
+      '#mod_quiz-next-nav',
+      'input[name="next"]',
+      'button[name="next"]',
+      'button.next-button',
+      '.next-button',
+      '.btn-next',
+      '.button-next',
+      'a.next_page',
+      '#bottom_next_button',
+      'button[data-action="next"]',
+      'a[aria-label*="Next"]',
+      'button[aria-label*="Next"]',
+      'input[aria-label*="Next"]'
+    ].join(', ');
+    const explicit = document.querySelector(explicitSelector);
+    if (explicit && explicit.offsetWidth > 0 && explicit.offsetHeight > 0 && explicit.style.display !== 'none') {
+      return explicit;
+    }
+
+    // 2. Scan all clickable candidates by text, value, aria-label, title
     const candidates = Array.from(document.querySelectorAll('button, a, input[type="button"], input[type="submit"], div[role="button"]'));
     return candidates.find(b => {
       if (b.offsetWidth === 0 || b.offsetHeight === 0 || b.style.display === 'none') return false;
-      const txt = (b.innerText || b.value || b.getAttribute('aria-label') || '').trim().toLowerCase();
-      return (
+      if (b.closest('#confirm-modal, .modal:not(.show)') && getComputedStyle(b.closest('#confirm-modal, .modal')).display === 'none') return false;
+
+      const txt = (b.innerText || b.value || b.getAttribute('aria-label') || b.title || '').trim().toLowerCase();
+      const name = (b.name || '').toLowerCase();
+      const id = (b.id || '').toLowerCase();
+      const cls = (b.className || '').toLowerCase();
+
+      // Negative filters: cannot be previous/back or finish/submit
+      if (txt.includes('previous') || txt.includes('prev') || txt.includes('back') || txt.includes('review') || txt.includes('cancel')) return false;
+      if (txt.includes('submit all') || txt.includes('confirm submit') || txt.includes('finish review')) return false;
+
+      // Positive text matches
+      const isNextText = (
         txt === 'next' ||
+        txt.startsWith('next') ||
         txt.includes('next page') ||
         txt.includes('next question') ||
-        txt.includes('continue')
-      ) && !txt.includes('previous') && !txt.includes('prev') && !txt.includes('submit') && !txt.includes('finish');
+        txt.includes('next section') ||
+        txt.includes('save & next') ||
+        txt.includes('save and next') ||
+        txt.includes('save & continue') ||
+        txt.includes('continue') ||
+        txt.includes('proceed') ||
+        txt === '>' ||
+        txt === '>>' ||
+        txt === '→' ||
+        txt === '»'
+      );
+
+      // Attribute matches
+      const isNextAttr = (
+        name === 'next' ||
+        id.includes('next') ||
+        cls.includes('next') ||
+        b.getAttribute('data-action') === 'next'
+      );
+
+      return isNextText || isNextAttr;
     });
   },
 
@@ -1033,22 +1088,37 @@ window.UniversalSolver = {
       }
 
       let checkedCount = 0;
-      for (const letter of aiRes.letters) {
-        const idx = letter.charCodeAt(0) - 65;
-        const target = q.options[idx] || q.options.find(o => o.letter?.toUpperCase() === letter);
-        if (target) {
-          const clickEl = target.labelEl || target.element;
+      q.options.forEach((opt, idx) => {
+        const letter = String.fromCharCode(65 + idx);
+        const shouldBeChecked = aiRes.letters.includes(letter) || aiRes.letters.includes(opt.letter?.toUpperCase());
+        const isCurrentlyChecked = opt.element ? opt.element.checked : false;
+
+        if (shouldBeChecked && !isCurrentlyChecked) {
+          const clickEl = opt.labelEl || opt.element;
           ['pointerdown', 'mousedown', 'click', 'mouseup'].forEach(evt => {
             clickEl.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true }));
           });
-          if (target.element) {
-            target.element.checked = true;
-            target.element.dispatchEvent(new Event('input', { bubbles: true }));
-            target.element.dispatchEvent(new Event('change', { bubbles: true }));
+          if (opt.element) {
+            opt.element.checked = true;
+            opt.element.dispatchEvent(new Event('input', { bubbles: true }));
+            opt.element.dispatchEvent(new Event('change', { bubbles: true }));
           }
           checkedCount++;
+        } else if (shouldBeChecked && isCurrentlyChecked) {
+          checkedCount++;
+        } else if (!shouldBeChecked && isCurrentlyChecked) {
+          // Uncheck options that should NOT be selected
+          const clickEl = opt.labelEl || opt.element;
+          ['pointerdown', 'mousedown', 'click', 'mouseup'].forEach(evt => {
+            clickEl.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true }));
+          });
+          if (opt.element) {
+            opt.element.checked = false;
+            opt.element.dispatchEvent(new Event('input', { bubbles: true }));
+            opt.element.dispatchEvent(new Event('change', { bubbles: true }));
+          }
         }
-      }
+      });
 
       q.isAnswered = true;
       q.container.style.transition = 'box-shadow 0.3s ease';
@@ -1287,20 +1357,49 @@ window.UniversalSolver = {
   },
 
   // ══════════════════════════════════════════════════════════════
-  //  MODE: DRAFT ONLY — Solve questions, never submit/navigate
+  //  MODE: DRAFT ONLY — Solve questions across all pages, never submit
   // ══════════════════════════════════════════════════════════════
   async _runDraftMode(updateStatus, isRunningCallback) {
-    updateStatus?.('[Draft] Solving all visible questions…');
-    const result = await this._solveAllOnPage(updateStatus, isRunningCallback);
+    let pagesProcessed = 0;
 
-    if (result.allAnswered) {
-      updateStatus?.('✅ All questions drafted! Review and submit manually.');
-    } else if (result.unansweredCount > 0) {
-      updateStatus?.(`⚠️ ${result.unansweredCount} question(s) could not be solved.`);
-    } else if (!result.questionsFound) {
-      updateStatus?.('No questions detected on this page.');
+    while (isRunningCallback() && pagesProcessed < 50) {
+      pagesProcessed++;
+      updateStatus?.(`[Draft] Solving questions on page ${pagesProcessed}…`);
+      const result = await this._solveAllOnPage(updateStatus, isRunningCallback);
+      if (!isRunningCallback()) return;
+
+      if (!result.questionsFound) {
+        updateStatus?.('No questions detected on this page.');
+        await chrome.storage.local.remove(['autopilotBatchState']);
+        return;
+      }
+
+      if (!result.allAnswered) {
+        updateStatus?.(`⚠️ ${result.unansweredCount} question(s) could not be drafted on this page.`);
+      }
+
+      // Check for Next page button (multi-page quizzes with 1 question per page)
+      const nextBtn = this.findNextButton();
+      if (nextBtn) {
+        updateStatus?.(`[Draft] Page ${pagesProcessed} questions drafted! Advancing to next page…`);
+        const state = {
+          active: true,
+          mode: 'draft'
+        };
+        await chrome.storage.local.set({ autopilotBatchState: state });
+        nextBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        await new Promise(r => setTimeout(r, 800));
+        nextBtn.click();
+        await new Promise(r => setTimeout(r, 2500));
+        // If single page app (no full reload), continue loop; if full reload, page unloads cleanly
+        continue;
+      }
+
+      // No next button found — reached final page of quiz in Draft mode!
+      await chrome.storage.local.remove(['autopilotBatchState']);
+      updateStatus?.('✅ All questions drafted across all pages! Review and submit manually.');
+      return;
     }
-    // Draft mode: NEVER clicks next/submit. Done.
   },
 
   // ══════════════════════════════════════════════════════════════
@@ -1455,6 +1554,12 @@ window.UniversalSolver = {
       // ── Page State 1: Active Quiz Attempt (questions on page) ──
       const questions = this.detectAllQuestions();
       if (questions.length > 0) {
+        if (state.mode === 'draft') {
+          updateStatus?.('[Draft] Resuming questions on next page…');
+          await this._runDraftMode(updateStatus, isRunningCallback);
+          return;
+        }
+
         updateStatus?.(`${modeTag} Solving questions on attempt page…`);
         await this._runSubmitMode(updateStatus, isRunningCallback);
 
@@ -1587,9 +1692,13 @@ window.UniversalSolver = {
   async startAutoPilot(updateStatus, isRunningCallback, mode = 'draft') {
     console.log(`[Autopilot AI] Starting in mode: ${mode}`);
 
-    // Mode 1: Draft Only (never submit or navigate)
+    // Mode 1: Draft Only (advances across all pages, never submits final attempt)
     if (mode === 'draft') {
-      await chrome.storage.local.remove(['autopilotBatchState']);
+      const state = {
+        active: true,
+        mode: 'draft'
+      };
+      await chrome.storage.local.set({ autopilotBatchState: state });
       await this._runDraftMode(updateStatus, isRunningCallback);
       return;
     }

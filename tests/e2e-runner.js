@@ -2,9 +2,11 @@
 // Rigorous monitored testing for:
 // 1. Question 4 Matching Icons (Snapchat, Twitter, Yelp, Instagram, LinkedIn)
 // 2. Questions 1-3 (MCQ, Drag-and-drop, Short Answer)
-// 3. Mode 2: Full Submit (Attempt -> Summary -> Modal Confirm -> Review)
-// 4. Mode 3: Course Batch (Course view -> Quiz 1 -> Quiz 2 -> Course Complete)
-// 5. Mode 4: All Courses (Dashboard -> Course 101 -> Course 102 Sweep)
+// 3. Multi-Select / Checkbox Questions (Cat breeds: Sphinx, Siberian, Burmese, Ragdoll -> 4/4 checked!)
+// 4. Mode 2: Full Submit (Attempt -> Summary -> Modal Confirm -> Review)
+// 5. Mode 3: Course Batch (Course view -> Quiz 1 -> Quiz 2 -> Course Complete)
+// 6. Mode 4: All Courses (Dashboard -> Course 101 -> Course 102 Sweep)
+// 7. Paginated 1-Question-Per-Page Quizzes (Next page navigation without early stopping!)
 
 const { chromium } = require('playwright');
 const path = require('path');
@@ -13,8 +15,9 @@ const { spawn } = require('child_process');
 
 async function runMonitoredTests() {
   console.log('══════════════════════════════════════════════════════════════');
-  console.log('🚀 RUNNING MONITORED PLAYWRIGHT TEST SUITE');
-  console.log('   Testing: Mode 3, Mode 4, Mode 2 & Question 4 Icon Matching');
+  console.log('🚀 RUNNING COMPREHENSIVE MONITORED PLAYWRIGHT TEST SUITE');
+  console.log('   Testing: Multi-Option Questions, 1-Q-Per-Page Quizzes,');
+  console.log('            Mode 3, Mode 4, Mode 2 & Question 4 Icon Matching');
   console.log('══════════════════════════════════════════════════════════════\n');
 
   // 1. Start local mock LMS server
@@ -75,12 +78,18 @@ async function runMonitoredTests() {
         sendMessage: (msg, cb) => {
           if (!cb) return;
           const p = (msg.prompt || '').toLowerCase();
-          if (p.includes('twitter is called') || p.includes('called a ?????')) {
+          if (p.includes('breeds of cat') || p.includes('sphinx')) {
+            cb({ success: true, text: 'A, B, C, D' });
+          } else if (p.includes('twitter is called') || p.includes('called a ?????')) {
             cb({ success: true, text: 'tweet' });
           } else if (p.includes('complete the sentences') || p.includes('text with blanks') || p.includes('available choices')) {
             cb({ success: true, text: '{"1": "Twitter", "2": "Instagram", "3": "Facetime"}' });
           } else if (p.includes('professional career networking')) {
             cb({ success: true, text: 'B' });
+          } else if (p.includes('manx cat')) {
+            cb({ success: true, text: 'B' });
+          } else if (p.includes('vegetarian')) {
+            cb({ success: true, text: 'A' });
           } else {
             cb({ success: true, text: 'A' });
           }
@@ -116,8 +125,8 @@ async function runMonitoredTests() {
       });
     }, { aiEngineCode, solverCode });
 
-    // ── TEST 1: Question 4 (Matching Icons) + Q1, Q2, Q3 Direct Solve ──
-    console.log('[TEST 1] Testing Question 4 (Matching Icons) & Questions 1, 2, 3...');
+    // ── TEST 1: Question 4 (Matching Icons) + Q1, Q2, Q3 + Multi-Select Cat Breeds (Q5) ──
+    console.log('[TEST 1] Testing Question 4 (Icons), Q1-Q3 & Multi-Select Q5 (Cat Breeds)...');
     await page.goto('http://localhost:8089/mod/quiz/attempt.php?id=1011');
     await page.waitForTimeout(500);
 
@@ -126,7 +135,7 @@ async function runMonitoredTests() {
       return qs.map(q => ({ type: q.type, text: q.text.slice(0, 35) }));
     });
     console.log('✓ Detected questions on page:', detected);
-    if (detected.length !== 4) throw new Error(`Expected 4 detected questions, got ${detected.length}`);
+    if (detected.length !== 5) throw new Error(`Expected 5 detected questions, got ${detected.length}`);
 
     // Solve all questions
     console.log('Executing solveAllOnPage on attempt page...');
@@ -161,6 +170,19 @@ async function runMonitoredTests() {
     if (q4Results.row4_linkedin !== 'LinkedIn') throw new Error(`Row 4 mismatch: expected LinkedIn, got ${q4Results.row4_linkedin}`);
     console.log('🎉 QUESTION 4 MATCHING ICONS: 100% PERFECT MATCH FOR ALL 5 DROPDOWNS!');
 
+    // Verify Question 5 (Multi-Select: Cat breeds)
+    const q5Results = await page.evaluate(() => ({
+      a_sphinx: document.getElementById('q5_a')?.checked,
+      b_siberian: document.getElementById('q5_b')?.checked,
+      c_burmese: document.getElementById('q5_c')?.checked,
+      d_ragdoll: document.getElementById('q5_d')?.checked
+    }));
+    console.log('✓ Question 5 (Multi-Select Checkboxes) Results:', q5Results);
+    if (!q5Results.a_sphinx || !q5Results.b_siberian || !q5Results.c_burmese || !q5Results.d_ragdoll) {
+      throw new Error(`Multi-select question failed! Not all 4 breeds checked: ${JSON.stringify(q5Results)}`);
+    }
+    console.log('🎉 QUESTION 5 MULTI-OPTION CHECKBOXES: ALL 4/4 CORRECT OPTIONS SELECTED (100% SCORE)!');
+
     // Verify Question 2 (Drag & Drop ddwtos)
     const q2Results = await page.evaluate(() => ({
       p1: document.querySelector('input.placeinput.place1')?.value,
@@ -189,7 +211,6 @@ async function runMonitoredTests() {
 
     // ── TEST 2: Mode 2 (Full Submit Flow: Attempt -> Summary -> Modal -> Review) ──
     console.log('\n[TEST 2] Testing Mode 2 (Full Submit with Double Confirmation)...');
-    // Clear storage for fresh test
     await page.evaluate(() => localStorage.clear());
     await page.goto('http://localhost:8089/mod/quiz/attempt.php?id=1011');
     await page.waitForTimeout(400);
@@ -203,7 +224,7 @@ async function runMonitoredTests() {
       );
     });
 
-    // Wait for the full submission cycle to complete (navigates through summary -> modal -> review)
+    // Wait for the full submission cycle to complete
     console.log('Waiting for full submission to reach review page...');
     await page.waitForURL('**/mod/quiz/review.php?id=1011', { timeout: 10000 });
     const isComplete = await page.evaluate(() => window.UniversalSolver.isQuizComplete());
@@ -217,12 +238,10 @@ async function runMonitoredTests() {
     await page.goto('http://localhost:8089/course/view.php?id=101');
     await page.waitForTimeout(400);
 
-    // Verify course has 2 assignments
     const asgns = await page.evaluate(() => window.UniversalSolver.findAssignmentLinks());
     console.log('✓ Found course assignments:', asgns.map(a => a.title));
     if (asgns.length !== 2) throw new Error(`Expected 2 assignments, got ${asgns.length}`);
 
-    // Trigger Mode 3 on course view page
     console.log('Starting Auto-Pilot in Course Batch mode...');
     await page.evaluate(() => {
       window.UniversalSolver.startAutoPilot(
@@ -232,7 +251,6 @@ async function runMonitoredTests() {
       );
     });
 
-    // Flow: Course view -> Quiz 1 landing -> Attempt -> Summary -> Review -> Quiz 2 landing -> Attempt -> Summary -> Review
     console.log('Waiting for Quiz 1 Landing Page...');
     await page.waitForURL('**/mod/quiz/view.php?id=1011', { timeout: 8000 });
     console.log('✓ Navigated to Quiz 1 Landing page');
@@ -265,7 +283,6 @@ async function runMonitoredTests() {
     await page.waitForURL('**/mod/quiz/review.php?id=1012', { timeout: 8000 });
     console.log('✓ Navigated to Quiz 2 Review page (Quiz 2 complete!)');
 
-    // Give time for batch completion state to persist and clear
     await page.waitForTimeout(2000);
     const finalBatchState = await page.evaluate(async () => {
       const data = await window.chrome.storage.local.get(['autopilotBatchState']);
@@ -287,7 +304,6 @@ async function runMonitoredTests() {
     console.log('✓ Found courses on dashboard:', allCourses.map(c => c.title));
     if (allCourses.length !== 2) throw new Error(`Expected 2 courses on dashboard, got ${allCourses.length}`);
 
-    // Trigger Mode 4
     console.log('Starting Auto-Pilot in All Courses mode...');
     await page.evaluate(() => {
       window.UniversalSolver.startAutoPilot(
@@ -297,15 +313,13 @@ async function runMonitoredTests() {
       );
     });
 
-    // Mode 4 should open Course 1
     console.log('Waiting for navigation to Course 101...');
     await page.waitForURL('**/course/view.php?id=101', { timeout: 8000 });
     console.log('✓ Opened Course 101 from dashboard');
 
-    // Mode 4 automatically begins Course 101's first quiz
-    console.log('Waiting for Mode 4 to route into Course 101 first assignment...');
-    await page.waitForURL('**/mod/quiz/view.php?id=1011', { timeout: 8000 });
-    console.log('✓ Mode 4 automatically routed into Course 101 Quiz 1');
+    console.log('Waiting for Mode 4 to route into Course 101 first assignment attempt...');
+    await page.waitForURL('**/mod/quiz/attempt.php?id=1011', { timeout: 8000 });
+    console.log('✓ Mode 4 automatically navigated into Quiz 1 Attempt page');
 
     // Verify Mode 4 state persisted course queue
     const m4State = await page.evaluate(async () => {
@@ -320,7 +334,6 @@ async function runMonitoredTests() {
     if (m4State?.mode !== 'allcourses') throw new Error(`Expected mode allcourses, got ${m4State?.mode}`);
     if (m4State?.courseQueue?.length !== 2) throw new Error('Expected 2 courses in queue');
 
-    // Test multi-course advancement: simulate completion of Course 101 and trigger advance
     console.log('Simulating completion of Course 101 assignments to verify Course 2 transition...');
     await page.evaluate(async () => {
       const data = await window.chrome.storage.local.get(['autopilotBatchState']);
@@ -333,16 +346,46 @@ async function runMonitoredTests() {
     console.log('Waiting for navigation to Course 102...');
     await page.waitForURL('**/course/view.php?id=102', { timeout: 8000 });
     console.log('✓ Successfully advanced to Course 102!');
-
     console.log('🎉 MODE 4 (ALL COURSES): MULTI-COURSE TRANSITIONS & SWEEP 100% OPERATIONAL!');
+
+    // ── TEST 5: Paginated 1-Question-Per-Page Flow (Next Page Navigation) ──
+    console.log('\n[TEST 5] Testing Paginated Quiz (1 Question per Page with Next Buttons)...');
+    await page.evaluate(() => localStorage.clear());
+    await page.goto('http://localhost:8089/mod/quiz/paginated.php?id=201&page=0');
+    await page.waitForTimeout(400);
+
+    // Verify next button is present on page 0
+    const hasNext0 = await page.evaluate(() => !!window.UniversalSolver.findNextButton());
+    console.log('✓ Page 0 findNextButton:', hasNext0);
+    if (!hasNext0) throw new Error('findNextButton returned false on paginated page 0');
+
+    // Launch Auto-Pilot in submit mode to verify it steps through Page 0 -> Page 1 -> Page 2 -> Summary
+    console.log('Starting Auto-Pilot on paginated 1-question-per-page quiz...');
+    await page.evaluate(() => {
+      window.UniversalSolver.startAutoPilot(
+        (m) => console.log('[PAGINATED-AUTO]', m),
+        () => true,
+        'submit'
+      );
+    });
+
+    // Wait for Auto-Pilot to step through all pages (Page 0 -> Page 1 -> Page 2 -> Summary -> Review)
+    console.log('Waiting for Auto-Pilot to advance through all pages and reach Review Page...');
+    await page.waitForURL('**/mod/quiz/review.php?id=201*', { timeout: 15000 });
+    const isPaginatedComplete = await page.evaluate(() => window.UniversalSolver.isQuizComplete());
+    console.log('✓ Paginated Review Page isQuizComplete:', isPaginatedComplete);
+    if (!isPaginatedComplete) throw new Error('Paginated quiz did not complete submission');
+    console.log('🎉 PAGINATED QUIZ (1 QUESTION PER PAGE): ADVANCED ACROSS ALL PAGES AND SUBMITTED 100%!');
 
     console.log('\n══════════════════════════════════════════════════════════════');
     console.log('✅ ALL MONITORED TESTS PASSED FLAWLESSLY! 100% OPERATIONAL');
     console.log('   - Question 4 Icon Matching: 5/5 Matches Correct');
+    console.log('   - Question 5 Multi-Select (Cat Breeds): 4/4 Checkboxes Selected');
     console.log('   - Questions 1, 2, 3: 100% Solved');
     console.log('   - Mode 2 (Full Submit): Attempt -> Summary -> Review Complete');
-    console.log('   - Mode 3 (Course Batch): All Quizzes in Course Solved End-to-End');
+    console.log('   - Mode 3 (Course Batch): All Quizzes Solved End-to-End');
     console.log('   - Mode 4 (All Courses): Multi-Course Sweep Operational');
+    console.log('   - Paginated Quizzes: 1-Q-Per-Page Next Flow 100% Solved & Advanced');
     console.log('══════════════════════════════════════════════════════════════\n');
 
   } catch (err) {
