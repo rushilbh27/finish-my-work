@@ -5,14 +5,48 @@ window.UniversalSolver = {
   detectAllQuestions() {
     const list = [];
 
-    // ── 0. IITM Online Degree & Angular Material LMS (seek.onlinedegree.iitm.ac.in, study.iitm.ac.in, mat-typography) ──
-    const isIITMOrAngular = 
+    // ── 0. IITM Online Degree, QuizPractice.space & Universal Question Portals ──
+    const isIITMOrQuizPractice = 
       document.querySelector('app-root, .mat-typography, [class*="app-shell"], mat-radio-group, mat-radio-button, mat-checkbox') !== null ||
-      document.title.includes('IITM Study') || 
+      document.title.includes('IITM') || 
+      document.title.includes('QuizPractice') || 
       document.title.includes('Graded Assignment') ||
-      /onlinedegree\.iitm\.ac\.in|study\.iitm\.ac\.in|seek\./i.test(window.location.hostname);
+      document.title.includes('Question Paper') ||
+      /onlinedegree\.iitm\.ac\.in|study\.iitm\.ac\.in|seek\.|quizpractice|iitmbs|pyq/i.test(window.location.hostname);
 
-    if (isIITMOrAngular) {
+    // Strategy A: Explicit Question Heading Discovery (e.g. 'Question 1: 6406531951224', 'Question 2: ...')
+    const headingElements = Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, div, span, p, b, strong')).filter(el => {
+      if (el.closest('#peslms-autopilot-root')) return false;
+      const txt = (el.innerText || '').trim();
+      return /^Question\s+\d+\s*[:\.]/i.test(txt) && txt.length < 50;
+    });
+
+    let containers = [];
+
+    if (headingElements.length > 0) {
+      headingElements.forEach(h => {
+        let cur = h.parentElement;
+        let best = null;
+        while (cur && cur !== document.body) {
+          if (cur.id === 'peslms-autopilot-root') break;
+          const hasInputs = cur.querySelector('input, textarea, select, [role="radio"], [role="checkbox"], mat-radio-button, mat-form-field');
+          if (hasInputs) {
+            best = cur;
+            let count = 0;
+            cur.querySelectorAll('h1, h2, h3, h4, h5, div, span, p, b, strong').forEach(sh => {
+              if (/^Question\s+\d+\s*[:\.]/i.test((sh.innerText || '').trim())) count++;
+            });
+            if (count > 1) break;
+          }
+          cur = cur.parentElement;
+        }
+        if (best && !containers.includes(best)) {
+          containers.push(best);
+        }
+      });
+    }
+
+    if (containers.length > 0 || isIITMOrQuizPractice) {
       // 0.1 Extract common reference instructions / notation pane (left column)
       let iitmCommonContext = '';
       const commonCandidate = Array.from(document.querySelectorAll('div, section, aside, app-common-data, [class*="common"], [class*="instruction"], [class*="notations"]')).find(el => {
@@ -29,15 +63,17 @@ window.UniversalSolver = {
         iitmCommonContext = commonCandidate.innerText.replace(/\s+/g, ' ').trim();
       }
 
-      // 0.2 Find question container(s)
-      let containers = Array.from(document.querySelectorAll(
-        'app-question, .question-card, .question-container, .question-wrapper, [class*="question-view"], mat-card, .mat-mdc-card, .question-pane, div[class*="question"]:not([class*="palette"]):not([class*="nav"])'
-      )).filter(c => {
-        if (c.offsetWidth === 0 || c.offsetHeight === 0) return false;
-        const hasOptions = c.querySelector('mat-radio-group, mat-radio-button, mat-checkbox, [role="radio"], [role="checkbox"], input[type="radio"], input[type="checkbox"], input.mat-mdc-input-element, textarea.mat-mdc-input-element, textarea, input[type="text"], input[type="number"], mat-form-field');
-        const hasHeader = /Question\s+\d+/i.test(c.innerText);
-        return hasOptions || hasHeader;
-      });
+      // Strategy B: LMS & Angular Question Containers
+      if (containers.length === 0) {
+        containers = Array.from(document.querySelectorAll(
+          'app-question, .question-card, .question-container, .question-wrapper, [class*="question-view"], mat-card, .mat-mdc-card, .question-pane, div[class*="question"]:not([class*="palette"]):not([class*="nav"])'
+        )).filter(c => {
+          if (c.offsetWidth === 0 && c.offsetHeight === 0) return false;
+          const hasOptions = c.querySelector('mat-radio-group, mat-radio-button, mat-checkbox, [role="radio"], [role="checkbox"], input[type="radio"], input[type="checkbox"], input.mat-mdc-input-element, textarea.mat-mdc-input-element, textarea, input[type="text"], input[type="number"], mat-form-field');
+          const hasHeader = /Question\s+\d+/i.test(c.innerText);
+          return hasOptions || hasHeader;
+        });
+      }
 
       // Fallback: If no container matched, find the active options, textarea or input block
       if (containers.length === 0) {
@@ -61,11 +97,14 @@ window.UniversalSolver = {
 
         let rawQText = clone.innerText || '';
         rawQText = rawQText
-          .replace(/Question\s+\d+\s*(?:\/\s*\d+)?/gi, '')
+          .replace(/Question\s+\d+\s*(?:[:\.]\s*\d+)?/gi, '')
+          .replace(/Total\s*Marks?\s*:\s*[0-9\.]+\s*\|\s*Type\s*:\s*[A-Z]+/gi, '')
+          .replace(/View\s+Solutions?\s*\(\d+\)/gi, '')
           .replace(/Flag for review/gi, '')
           .replace(/\d+\s*marks?/gi, '')
           .replace(/Clear Selection/gi, '')
           .replace(/Options\s*$/gi, '')
+          .replace(/Answer\s*\(Numeric\)\s*:?/gi, '')
           .replace(/Your answer\s*/gi, '')
           .replace(/Only numeric input is accepted for this question\.?/gi, '')
           .replace(/•\s*/g, '')
@@ -86,7 +125,7 @@ window.UniversalSolver = {
 
         // Check A: Radio buttons (MCQ)
         const radioEls = Array.from(q.querySelectorAll('mat-radio-button, .mat-mdc-radio-button, [role="radio"], input[type="radio"]')).filter(r => {
-          const lbl = r.innerText || r.getAttribute('aria-label') || '';
+          const lbl = r.innerText || r.getAttribute('aria-label') || r.closest('label')?.innerText || '';
           return !lbl.toLowerCase().includes('clear selection');
         });
         const uniqueRadios = radioEls.filter(el => {
@@ -97,7 +136,8 @@ window.UniversalSolver = {
         if (uniqueRadios.length >= 2) {
           const options = uniqueRadios.map((r, i) => {
             const innerInput = r.tagName === 'INPUT' ? r : r.querySelector('input[type="radio"]');
-            let labelText = (r.innerText || r.getAttribute('aria-label') || '').trim();
+            const labelEl = r.closest('label') || r.parentElement;
+            let labelText = (r.innerText || labelEl?.innerText || r.getAttribute('aria-label') || '').trim();
             const letterMatch = labelText.match(/^([A-D])[\.\)\:\-]\s*/i);
             const letter = letterMatch ? letterMatch[1].toUpperCase() : String.fromCharCode(65 + i);
             const cleanText = labelText.replace(/^[A-D][\.\)\:\-]\s*/i, '').trim();
@@ -109,7 +149,7 @@ window.UniversalSolver = {
 
             return {
               element: innerInput || r,
-              labelEl: r,
+              labelEl: labelEl || r,
               letter: letter,
               text: cleanText,
               checked: isChecked
@@ -130,7 +170,7 @@ window.UniversalSolver = {
 
         // Check B: Checkboxes (MSQ / Multi-Select)
         const checkboxEls = Array.from(q.querySelectorAll('mat-checkbox, .mat-mdc-checkbox, [role="checkbox"], input[type="checkbox"]')).filter(c => {
-          const lbl = c.innerText || c.getAttribute('aria-label') || '';
+          const lbl = c.innerText || c.getAttribute('aria-label') || c.closest('label')?.innerText || '';
           return !lbl.toLowerCase().includes('clear selection');
         });
         const uniqueCheckboxes = checkboxEls.filter(el => {
@@ -141,7 +181,8 @@ window.UniversalSolver = {
         if (uniqueCheckboxes.length >= 2) {
           const options = uniqueCheckboxes.map((c, i) => {
             const innerInput = c.tagName === 'INPUT' ? c : c.querySelector('input[type="checkbox"]');
-            let labelText = (c.innerText || c.getAttribute('aria-label') || '').trim();
+            const labelEl = c.closest('label') || c.parentElement;
+            let labelText = (c.innerText || labelEl?.innerText || c.getAttribute('aria-label') || '').trim();
             const letterMatch = labelText.match(/^([A-D])[\.\)\:\-]\s*/i);
             const letter = letterMatch ? letterMatch[1].toUpperCase() : String.fromCharCode(65 + i);
             const cleanText = labelText.replace(/^[A-D][\.\)\:\-]\s*/i, '').trim();
@@ -153,7 +194,7 @@ window.UniversalSolver = {
 
             return {
               element: innerInput || c,
-              labelEl: c,
+              labelEl: labelEl || c,
               letter: letter,
               text: cleanText,
               checked: isChecked
@@ -178,9 +219,10 @@ window.UniversalSolver = {
         if (textInput) {
           const containerText = q.innerText || '';
           const isNAT = 
-            /numeric|numerical|nat\b/i.test(containerText) || 
+            /numeric|numerical|nat\b|type\s*:\s*sa/i.test(containerText) || 
             /numeric|numerical|nat\b/i.test(fullText) ||
             containerText.includes('Only numeric input') ||
+            containerText.includes('Answer (Numeric)') ||
             fullText.includes('Only numeric input');
 
           list.push({
@@ -691,24 +733,48 @@ window.UniversalSolver = {
     const all = this.detectAllQuestions();
     if (!all.length) return null;
 
-    // First try: UNANSWERED question currently in viewport
-    const inViewUnanswered = all.find(q => {
-      if (q.isAnswered) return false;
-      const rect = q.container.getBoundingClientRect();
-      return rect.top >= -100 && rect.bottom <= (window.innerHeight + 150);
-    });
-    if (inViewUnanswered) return inViewUnanswered;
+    const windowHeight = window.innerHeight || document.documentElement.clientHeight || 800;
+    const viewportCenter = windowHeight / 2;
 
-    // Second try: first unanswered question anywhere on the page
+    // First try: UNANSWERED question currently in viewport (closest to viewport center)
+    let bestUnanswered = null;
+    let minUnansweredDist = Infinity;
+
+    all.forEach(q => {
+      if (q.isAnswered) return;
+      const rect = q.container.getBoundingClientRect();
+      if (rect.bottom > 50 && rect.top < (windowHeight - 50)) {
+        const center = rect.top + (rect.height || 100) / 2;
+        const dist = Math.abs(center - viewportCenter);
+        if (dist < minUnansweredDist) {
+          minUnansweredDist = dist;
+          bestUnanswered = q;
+        }
+      }
+    });
+    if (bestUnanswered) return bestUnanswered;
+
+    // Second try: ANY question currently in viewport (closest to viewport center)
+    let bestVisible = null;
+    let minVisibleDist = Infinity;
+    all.forEach(q => {
+      const rect = q.container.getBoundingClientRect();
+      if (rect.bottom > 50 && rect.top < (windowHeight - 50)) {
+        const center = rect.top + (rect.height || 100) / 2;
+        const dist = Math.abs(center - viewportCenter);
+        if (dist < minVisibleDist) {
+          minVisibleDist = dist;
+          bestVisible = q;
+        }
+      }
+    });
+    if (bestVisible) return bestVisible;
+
+    // Third try: first unanswered question anywhere on the page
     const unanswered = all.find(q => !q.isAnswered);
     if (unanswered) return unanswered;
 
-    // Fallback: question currently in viewport or first question
-    const inView = all.find(q => {
-      const rect = q.container.getBoundingClientRect();
-      return rect.top >= -100 && rect.bottom <= (window.innerHeight + 150);
-    });
-    return inView || all[0];
+    return all[0];
   },
 
   // Locates the Start / Attempt Quiz button on landing pages (view.php, IITM landing page)
