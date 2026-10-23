@@ -146,6 +146,20 @@
   text-transform: uppercase !important;
 }
 
+.peslms-ver-badge {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  font-size: 8.5px !important;
+  font-weight: 800 !important;
+  background: #2563eb !important;
+  color: #ffffff !important;
+  padding: 1px 4px !important;
+  border: 1px solid #0f172a !important;
+  margin-left: 4px !important;
+  vertical-align: middle !important;
+  letter-spacing: 0.04em !important;
+  display: inline-block !important;
+}
+
 .peslms-header-ctrls {
   display: flex !important;
   align-items: center !important;

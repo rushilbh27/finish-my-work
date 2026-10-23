@@ -439,4 +439,64 @@ document.addEventListener('DOMContentLoaded', async () => {
       location.reload();
     }
   });
+
+  // ── Live Groq Key & Network Verification ──
+  const btnTestGroq = document.getElementById('btn-test-groq');
+  const groqTestStatus = document.getElementById('groq-test-status');
+
+  btnTestGroq?.addEventListener('click', async () => {
+    const key = groqInput.value.trim();
+    if (!key) {
+      groqTestStatus.classList.remove('hidden');
+      groqTestStatus.style.color = '#dc2626';
+      groqTestStatus.innerHTML = '❌ Paste your gsk_... key first.';
+      return;
+    }
+
+    btnTestGroq.disabled = true;
+    btnTestGroq.textContent = '⏳ Testing live connection…';
+    groqTestStatus.classList.remove('hidden');
+    groqTestStatus.style.color = '#0f172a';
+    groqTestStatus.innerHTML = 'Connecting to api.groq.com…';
+
+    const t0 = performance.now();
+    try {
+      const res = await fetch('https://api.groq.com/openai/v1/models', {
+        headers: { 'Authorization': `Bearer ${key}` }
+      });
+      const latency = Math.round(performance.now() - t0);
+
+      if (!res.ok) {
+        const errText = await res.text();
+        let errMsg = errText.slice(0, 80);
+        try {
+          const parsed = JSON.parse(errText);
+          if (parsed.error?.message) errMsg = parsed.error.message;
+        } catch (e) {}
+        groqTestStatus.style.color = '#dc2626';
+        groqTestStatus.innerHTML = `❌ Groq rejected key (HTTP ${res.status}):<br><b>${errMsg}</b>`;
+        btnTestGroq.disabled = false;
+        btnTestGroq.textContent = '⚡ Test Groq Key & Network Now';
+        return;
+      }
+
+      const data = await res.json();
+      const models = (data.data || []).map(m => m.id).filter(id => !id.includes('whisper') && !id.includes('guard'));
+      
+      // Auto-save key since it is verified valid!
+      chrome.storage.local.set({ groqApiKey: key, aiProvider: 'groq' });
+
+      groqTestStatus.style.color = '#15803d';
+      groqTestStatus.innerHTML = `✅ <b>Connection verified in ${latency}ms!</b><br>` +
+        `• Status: Valid & Active<br>` +
+        `• Models: ${models.slice(0, 3).join(', ')}...<br>` +
+        `• Key auto-saved & ready!`;
+    } catch (err) {
+      groqTestStatus.style.color = '#dc2626';
+      groqTestStatus.innerHTML = `❌ Network Error: Could not reach Groq servers (${err.message}).`;
+    }
+
+    btnTestGroq.disabled = false;
+    btnTestGroq.textContent = '⚡ Test Groq Key & Network Now';
+  });
 });

@@ -42,7 +42,7 @@
       <div class="peslms-header" id="peslms-drag-handle">
         <div class="peslms-logo">
           <span class="peslms-dash">—</span>
-          <div class="peslms-title">Finish My Work</div>
+          <div class="peslms-title">Finish My Work <span class="peslms-ver-badge">v2.5.1</span></div>
         </div>
         <div class="peslms-header-ctrls">
           <button class="peslms-ctrl-btn" id="peslms-btn-minimize" title="Collapse to dock tab" aria-label="Minimize HUD">—</button>
