@@ -3,22 +3,19 @@
   const oldRoot = document.getElementById('peslms-autopilot-root');
   if (oldRoot) oldRoot.remove();
 
-  try {
-    const script = document.createElement('script');
-    script.src = chrome.runtime.getURL('content/inject-page.js');
-    (document.head || document.documentElement).appendChild(script);
-  } catch (e) {}
 
   if (window.self !== window.top) return;
 
   // ── Read user settings ──
   let isExtensionEnabled = true;
   let showWidget = true;
+  let isHudMinimized = false;
 
   try {
-    const stored = await chrome.storage.local.get(['extensionEnabled', 'showFloatingWidget']);
+    const stored = await chrome.storage.local.get(['extensionEnabled', 'showFloatingWidget', 'isHudMinimized']);
     if (stored.extensionEnabled === false) isExtensionEnabled = false;
     if (stored.showFloatingWidget !== true) showWidget = false; // Default: OFF (no floating box on page!)
+    if (stored.isHudMinimized === true) isHudMinimized = true;
   } catch (e) {}
 
   // ── Build the widget DOM ──
@@ -30,11 +27,14 @@
 
   container.innerHTML = `
     <!-- Minimized Docked Tab (High Visibility Neo-Brutalist Sticker) -->
-    <button class="peslms-dock-tab hidden" id="peslms-dock-tab" title="Expand Finish My Work HUD" aria-label="Expand Finish My Work HUD">
-      <span class="peslms-dock-dash">—</span>
-      <span class="peslms-dock-title">FMW</span>
-      <span class="peslms-dock-dot" id="peslms-dock-dot"></span>
-    </button>
+    <div class="peslms-dock-tab hidden" id="peslms-dock-tab">
+      <div id="peslms-dock-expand" style="display:flex;align-items:center;gap:8px;cursor:pointer;" title="Expand Finish My Work HUD" aria-label="Expand HUD">
+        <span class="peslms-dock-dash">—</span>
+        <span class="peslms-dock-title">FMW</span>
+        <span class="peslms-dock-dot" id="peslms-dock-dot"></span>
+      </div>
+      <button class="peslms-dock-close" id="peslms-dock-close" title="Close HUD completely" aria-label="Close HUD">✕</button>
+    </div>
 
     <!-- Compact Neo-Brutalist HUD Card -->
     <div class="peslms-widget" id="peslms-main-widget">
@@ -86,21 +86,63 @@
   const btnClose = document.getElementById('peslms-btn-close');
   const btnMinimize = document.getElementById('peslms-btn-minimize');
   const dockTab = document.getElementById('peslms-dock-tab');
+  const dockExpand = document.getElementById('peslms-dock-expand');
+  const dockClose = document.getElementById('peslms-dock-close');
   const dockDot = document.getElementById('peslms-dock-dot');
 
   let isAutoPilotRunning = false;
   let currentAgentMode = 'draft'; // default mode
 
-  btnMinimize?.addEventListener('click', (e) => {
+  if (isHudMinimized && showWidget && isExtensionEnabled) {
+    mainWidget.classList.add('hidden');
+    dockTab.classList.remove('hidden');
+  }
+
+  async function closeHUDCompletely() {
+    container.style.setProperty('display', 'none', 'important');
+    showWidget = false;
+    mainWidget.classList.remove('hidden');
+    dockTab.classList.add('hidden');
+    try {
+      await chrome.storage.local.set({ showFloatingWidget: false, isHudMinimized: false });
+    } catch (err) {}
+  }
+
+  btnMinimize?.addEventListener('click', async (e) => {
     e.stopPropagation();
     mainWidget.classList.add('hidden');
     dockTab.classList.remove('hidden');
+    try {
+      await chrome.storage.local.set({ isHudMinimized: true });
+    } catch (err) {}
   });
 
-  dockTab?.addEventListener('click', (e) => {
+  dockExpand?.addEventListener('click', async (e) => {
     e.stopPropagation();
     dockTab.classList.add('hidden');
     mainWidget.classList.remove('hidden');
+    try {
+      await chrome.storage.local.set({ isHudMinimized: false });
+    } catch (err) {}
+  });
+
+  dockTab?.addEventListener('click', async (e) => {
+    if (e.target === dockClose || dockClose?.contains(e.target)) return;
+    dockTab.classList.add('hidden');
+    mainWidget.classList.remove('hidden');
+    try {
+      await chrome.storage.local.set({ isHudMinimized: false });
+    } catch (err) {}
+  });
+
+  btnClose?.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    await closeHUDCompletely();
+  });
+
+  dockClose?.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    await closeHUDCompletely();
   });
 
   // Load saved agent mode
@@ -214,7 +256,12 @@
     isAutoPilotRunning = false;
     btnAutoPilot.classList.remove('running');
     btnAutoPilot.innerHTML = '▶ &nbsp;Run Auto-Pilot';
-    setStatus('Auto-pilot finished.', false);
+    const lastMsg = statusText?.textContent || '';
+    if (!lastMsg || (!lastMsg.includes('✅') && !lastMsg.includes('🎉') && !lastMsg.includes('⚠️') && !lastMsg.includes('paused') && !lastMsg.includes('complete'))) {
+      setStatus('Auto-pilot finished.', false);
+    } else {
+      setStatus(lastMsg, false);
+    }
   });
 
   // ── Solve Once Button ──
@@ -239,7 +286,9 @@
     }
 
     if (res?.success) {
-      setStatus(`Answer applied ✓`, false);
+      const qNum = res.questionNum ? `Q${res.questionNum}: ` : '';
+      const ansDetail = res.answer ? ` (${res.answer})` : '';
+      setStatus(`${qNum}Answer applied${ansDetail} ✓`, false);
     } else {
       setStatus(res?.message || 'Could not resolve question.', false, true);
     }

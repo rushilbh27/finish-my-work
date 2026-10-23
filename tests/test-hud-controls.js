@@ -55,16 +55,22 @@ async function testHudControls() {
   const isDockVisibleExp = await page.$eval('#peslms-dock-tab', el => window.getComputedStyle(el).display !== 'none');
   console.log(`3. After Re-Expand: Main visible = ${isMainVisibleExp}, Dock visible = ${isDockVisibleExp}`);
 
-  // 4. Click Close button
-  await page.click('#peslms-btn-close');
-  const isContainerVisible = await page.$eval('#peslms-autopilot-root', el => window.getComputedStyle(el).display !== 'none');
+  // 4. Click Minimize button again
+  await page.click('#peslms-btn-minimize');
+  const isDockVisibleMin2 = await page.$eval('#peslms-dock-tab', el => window.getComputedStyle(el).display !== 'none');
+  console.log(`4. After Minimize again: Dock visible = ${isDockVisibleMin2}`);
+
+  // 5. Click Close button directly on Dock sticker (#peslms-dock-close)
+  await page.click('#peslms-dock-close');
+  const isContainerVisibleDockClose = await page.$eval('#peslms-autopilot-root', el => window.getComputedStyle(el).display !== 'none');
   const storageResult = await page.evaluate(() => window.__stored);
-  console.log(`4. After Close: Container visible = ${isContainerVisible}, Stored showFloatingWidget = ${storageResult?.showFloatingWidget}`);
+  console.log(`5. After Dock Close: Container visible = ${isContainerVisibleDockClose}, Stored showFloatingWidget = ${storageResult?.showFloatingWidget}`);
 
   const passed = isMainVisibleInit && !isDockVisibleInit &&
                  !isMainVisibleMin && isDockVisibleMin &&
                  isMainVisibleExp && !isDockVisibleExp &&
-                 !isContainerVisible && storageResult?.showFloatingWidget === false;
+                 isDockVisibleMin2 &&
+                 !isContainerVisibleDockClose && storageResult?.showFloatingWidget === false;
 
   if (!passed) {
     console.error('\n❌ HUD CONTROLS TEST FAILED');

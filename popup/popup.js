@@ -112,6 +112,29 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   updatePowerUI(isEnabled);
 
+  // Synchronize state across popup and in-page HUD in real-time
+  if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === 'local') {
+        if (changes.showFloatingWidget !== undefined) {
+          toggleWidget.checked = changes.showFloatingWidget.newValue === true;
+        }
+        if (changes.extensionEnabled !== undefined) {
+          updatePowerUI(changes.extensionEnabled.newValue !== false);
+        }
+        if (changes.aiProvider !== undefined && changes.aiProvider.newValue) {
+          currentProvider = changes.aiProvider.newValue;
+          selectTab(currentProvider);
+          updateStatusBadge();
+        }
+        if (changes.groqApiKey !== undefined && changes.groqApiKey.newValue) {
+          groqInput.value = changes.groqApiKey.newValue;
+          updateStatusBadge();
+        }
+      }
+    });
+  }
+
   togglePower.addEventListener('change', async () => {
     const active = togglePower.checked;
     updatePowerUI(active);
@@ -499,7 +522,23 @@ document.addEventListener('DOMContentLoaded', async () => {
       groqTestStatus.innerHTML = `✅ <b>Connection verified in ${latency}ms!</b><br>` +
         `• Status: Valid & Active<br>` +
         `• Models: ${models.slice(0, 3).join(', ')}...<br>` +
-        `• Key auto-saved & ready!`;
+        `• Key auto-saved & ready!<br>` +
+        `<button id="btn-done-after-test" type="button" style="margin-top:8px;width:100%;background:#16a34a;color:#fff;border:1.5px solid #0f172a;padding:6px;font-weight:700;cursor:pointer;box-shadow:2px 2px 0px #0f172a;">Back to Main View ▶</button>`;
+
+      document.getElementById('btn-done-after-test')?.addEventListener('click', () => {
+        viewSettings.classList.add('hidden');
+        viewMain.classList.remove('hidden');
+        showNotification('Groq Cloud connected & active!', 'success');
+      });
+
+      // Smooth auto-return so user is never stuck in configuration view
+      setTimeout(() => {
+        if (!viewSettings.classList.contains('hidden')) {
+          viewSettings.classList.add('hidden');
+          viewMain.classList.remove('hidden');
+          showNotification('Groq Cloud connected & active!', 'success');
+        }
+      }, 1600);
     } catch (err) {
       groqTestStatus.style.color = '#dc2626';
       groqTestStatus.innerHTML = `❌ Network Error: Could not reach Groq servers (${err.message}).`;
@@ -507,6 +546,5 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     btnTestGroq.disabled = false;
     btnTestGroq.textContent = '⚡ Test Groq Key & Network Now';
-    selectTab('groq');
   });
 });

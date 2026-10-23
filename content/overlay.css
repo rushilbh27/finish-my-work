@@ -32,9 +32,9 @@
   display: flex !important;
   align-items: center !important;
   gap: 8px;
-  min-height: 44px;
+  min-height: 40px;
   min-width: 44px;
-  padding: 8px 14px;
+  padding: 6px 10px;
   background: #fbfbfa !important;
   border: 2.5px solid #0f172a !important;
   box-shadow: 4px 4px 0px #0f172a, 0 0 0 2px #ffffff !important;
@@ -53,9 +53,33 @@
   box-shadow: 5.5px 5.5px 0px #0f172a, 0 0 0 2px #ffffff !important;
 }
 
+.peslms-dock-close {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 18px !important;
+  height: 18px !important;
+  margin-left: 6px !important;
+  background: transparent !important;
+  border: 1.5px solid #0f172a !important;
+  border-radius: 0px !important;
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  color: #0f172a !important;
+  cursor: pointer !important;
+  line-height: 1 !important;
+  padding: 0 !important;
+  transition: background 0.1s ease, color 0.1s ease !important;
+}
+
+.peslms-dock-close:hover {
+  background: #dc2626 !important;
+  color: #ffffff !important;
+}
+
 .peslms-dock-tab:active {
-  transform: translate(3px, 3px) !important;
-  box-shadow: 0px 0px 0px #0f172a, 0 0 0 2px #ffffff !important;
+  transform: translate(2px, 2px) !important;
+  box-shadow: 1px 1px 0px #0f172a, 0 0 0 2px #ffffff !important;
 }
 
 .peslms-dock-dash {

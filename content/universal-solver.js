@@ -1,98 +1,123 @@
 window.UniversalSolver = {
 
   // ── 0. Ground-Truth Answer Key from Page State / Inertia.js ──
-  getVerifiedPageAnswers() {
-    if (this._cachedVerifiedMap && this._cachedVerifiedMap.size > 0) {
-      return this._cachedVerifiedMap;
-    }
-
+  _buildVerifiedMapFromProps(props) {
     const map = new Map();
     try {
-      // 1. Check for existing data-inertia-props or data-page on DOM
-      let appEl = document.getElementById('app') || document.querySelector('[data-page], [data-inertia-props]');
-      let raw = appEl?.getAttribute('data-inertia-props') || appEl?.getAttribute('data-page');
+      const qp = props?.question_paper || props?.questionPaper || props;
+      const questions = qp?.questions || props?.questions;
+      if (Array.isArray(questions)) {
+        questions.forEach((q, idx) => {
+          const domId = `question${idx + 1}`;
+          const longId = q.question_num_long ? String(q.question_num_long) : null;
+          const qType = (q.question_type || q.type || '').toUpperCase();
 
-      // 2. If not found in DOM, bridge into page context to read Vue's $page.props
-      if (!raw && typeof document !== 'undefined') {
-        try {
-          const script = document.createElement('script');
-          script.textContent = `
-            try {
-              const app = document.getElementById('app');
-              const page = app?.__vue_app__?.config?.globalProperties?.$page;
-              if (page && page.props) {
-                app.setAttribute('data-inertia-props', JSON.stringify({
-                  props: page.props,
-                  url: page.url
-                }));
+          let ansObj = null;
+          const hasOptions = Array.isArray(q.options) && q.options.length > 0;
+
+          if (qType === 'MCQ' || qType === 'MSQ' || hasOptions) {
+            const correctIndices = [];
+            const correctIds = [];
+            const correctNumbers = [];
+            (q.options || []).forEach((opt, oIdx) => {
+              if (opt.is_correct || opt.correct || opt.answer) {
+                correctIndices.push(oIdx);
+                if (opt.id) correctIds.push(String(opt.id));
+                if (opt.option_number) correctNumbers.push(String(opt.option_number));
               }
-            } catch(e) {}
-          `;
-          (document.head || document.documentElement).appendChild(script);
-          script.remove();
-          raw = document.getElementById('app')?.getAttribute('data-inertia-props');
-        } catch (e) {}
-      }
-
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        const qp = parsed?.props?.question_paper || parsed?.props?.questionPaper || parsed?.question_paper;
-        const questions = qp?.questions || parsed?.props?.questions || parsed?.questions;
-        if (Array.isArray(questions)) {
-          questions.forEach((q, idx) => {
-            const domId = `question${idx + 1}`;
-            const longId = q.question_num_long ? String(q.question_num_long) : null;
-            const qType = (q.question_type || q.type || '').toUpperCase();
-
-            let ansObj = null;
-            const hasOptions = Array.isArray(q.options) && q.options.length > 0;
-
-            if (qType === 'MCQ' || qType === 'MSQ' || hasOptions) {
-              const correctIndices = [];
-              const correctIds = [];
-              const correctNumbers = [];
-              (q.options || []).forEach((opt, oIdx) => {
-                if (opt.is_correct || opt.correct || opt.answer) {
-                  correctIndices.push(oIdx);
-                  if (opt.id) correctIds.push(String(opt.id));
-                  if (opt.option_number) correctNumbers.push(String(opt.option_number));
-                }
-              });
-              if (correctIndices.length > 0) {
-                const letters = correctIndices.map(i => String.fromCharCode(65 + i));
-                ansObj = {
-                  type: (qType === 'MSQ' || correctIndices.length > 1) ? 'multichoice' : 'mcq',
-                  letters: letters,
-                  indices: correctIndices,
-                  optionIds: correctIds,
-                  optionNumbers: correctNumbers
-                };
-              }
-            } else if (q.value_start !== null && q.value_start !== undefined) {
+            });
+            if (correctIndices.length > 0) {
+              const letters = correctIndices.map(i => String.fromCharCode(65 + i));
               ansObj = {
-                type: 'text',
-                value: String(q.value_start).trim(),
-                valueEnd: q.value_end !== null && q.value_end !== undefined ? String(q.value_end).trim() : null
+                type: (qType === 'MSQ' || correctIndices.length > 1) ? 'multichoice' : 'mcq',
+                letters: letters,
+                indices: correctIndices,
+                optionIds: correctIds,
+                optionNumbers: correctNumbers
               };
             }
+          } else if (q.value_start !== null && q.value_start !== undefined) {
+            ansObj = {
+              type: 'text',
+              value: String(q.value_start).trim(),
+              valueEnd: q.value_end !== null && q.value_end !== undefined ? String(q.value_end).trim() : null
+            };
+          }
 
-            if (ansObj) {
-              map.set(domId, ansObj);
-              map.set(domId.toLowerCase(), ansObj);
-              if (longId) map.set(longId, ansObj);
-              if (q.id) map.set(String(q.id), ansObj);
-            }
-          });
-        }
+          if (ansObj) {
+            map.set(domId, ansObj);
+            map.set(domId.toLowerCase(), ansObj);
+            map.set(`q${idx + 1}`, ansObj);
+            if (longId) map.set(longId, ansObj);
+            if (q.id) map.set(String(q.id), ansObj);
+          }
+        });
       }
     } catch (e) {
-      console.warn('[Autopilot] Error reading page verified answers:', e);
+      console.warn('[Autopilot] Error building verified map:', e);
     }
 
     if (map.size > 0) {
       this._cachedVerifiedMap = map;
     }
     return map;
+  },
+
+  getVerifiedPageAnswers() {
+    if (this._cachedVerifiedMap && this._cachedVerifiedMap.size > 0) {
+      return this._cachedVerifiedMap;
+    }
+
+    try {
+      const appEl = document.getElementById('app') || document.querySelector('[data-page], [data-inertia-props]');
+      const raw = appEl?.getAttribute('data-inertia-props') || 
+                  document.documentElement?.getAttribute('data-inertia-props') || 
+                  appEl?.getAttribute('data-page') || 
+                  appEl?.dataset?.inertiaProps || 
+                  appEl?.dataset?.page;
+
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return this._buildVerifiedMapFromProps(parsed?.props || parsed);
+      }
+
+      if (typeof window !== 'undefined' && window.__PESLMS_INERTIA_PROPS__?.props) {
+        return this._buildVerifiedMapFromProps(window.__PESLMS_INERTIA_PROPS__.props);
+      }
+    } catch (e) {
+      console.warn('[Autopilot] Error reading page verified answers synchronously:', e);
+    }
+
+    return this._cachedVerifiedMap || new Map();
+  },
+
+  async ensureVerifiedPageAnswers() {
+    let map = this.getVerifiedPageAnswers();
+    if (map && map.size > 0) return map;
+
+    if (typeof window !== 'undefined') {
+      try {
+        const received = await new Promise((resolve) => {
+          const timer = setTimeout(() => resolve(null), 450);
+          const listener = (e) => {
+            if (e.data?.source === 'PESLMS_PAGE' && e.data?.type === 'PAGE_DATA_RESULT') {
+              clearTimeout(timer);
+              window.removeEventListener('message', listener);
+              resolve(e.data.data);
+            }
+          };
+          window.addEventListener('message', listener);
+          window.postMessage({ source: 'PESLMS_EXTENSION', type: 'GET_PAGE_DATA' }, '*');
+        });
+
+        if (received?.props) {
+          map = this._buildVerifiedMapFromProps(received.props);
+          if (map && map.size > 0) return map;
+        }
+      } catch (e) {}
+    }
+
+    return this.getVerifiedPageAnswers();
   },
 
   getVerifiedAnswer(q) {
@@ -105,6 +130,7 @@ window.UniversalSolver = {
     if (q.id && map.has(q.id)) return map.get(q.id);
     if (q.container?.id && map.has(q.container.id)) return map.get(q.container.id);
     if (q.questionNum !== undefined && map.has(`question${q.questionNum}`)) return map.get(`question${q.questionNum}`);
+    if (q.index !== undefined && map.has(`question${q.index + 1}`)) return map.get(`question${q.index + 1}`);
 
     return null;
   },
@@ -113,62 +139,81 @@ window.UniversalSolver = {
     if (!verified) return { success: false };
 
     // 1. Short Answer / NAT / Text
-    if (verified.type === 'text' && q.textInput) {
+    const textInput = q.textInput || q.container?.querySelector('input[type="text"], input[type="number"], input:not([type="radio"]):not([type="checkbox"]):not([type="button"]):not([type="submit"]):not([type="hidden"]), textarea');
+    if (verified.type === 'text' && textInput) {
       const val = verified.value;
-      q.textInput.focus();
-      const proto = q.textInput.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+      textInput.focus();
+      const proto = textInput.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
       const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
       if (nativeSetter) {
-        nativeSetter.call(q.textInput, val);
+        nativeSetter.call(textInput, val);
       } else {
-        q.textInput.value = val;
+        textInput.value = val;
       }
-      q.textInput.dispatchEvent(new Event('input', { bubbles: true }));
-      q.textInput.dispatchEvent(new Event('change', { bubbles: true }));
-      q.textInput.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true }));
-      q.textInput.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
-      q.textInput.blur();
+      textInput.dispatchEvent(new Event('input', { bubbles: true }));
+      textInput.dispatchEvent(new Event('change', { bubbles: true }));
+      textInput.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true }));
+      textInput.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+      textInput.blur();
       await new Promise(r => setTimeout(r, 60));
       q.isAnswered = true;
 
-      q.container.style.transition = 'box-shadow 0.3s ease';
-      q.container.style.boxShadow = '0 0 16px rgba(16, 185, 129, 0.4)';
-      setTimeout(() => { if (q.container) q.container.style.boxShadow = ''; }, 2000);
+      if (q.container) {
+        q.container.style.transition = 'box-shadow 0.3s ease';
+        q.container.style.boxShadow = '0 0 16px rgba(16, 185, 129, 0.4)';
+        setTimeout(() => { if (q.container) q.container.style.boxShadow = ''; }, 2000);
+      }
 
       updateStatus?.(`Verified Answered: ${val}`);
       return { success: true, answer: val, verified: true };
     }
 
     // 2. MCQ (Single Select)
-    if (verified.type === 'mcq' && q.options && q.options.length > 0) {
+    if (verified.type === 'mcq') {
       let target = null;
 
-      if (verified.optionIds?.length > 0) {
-        target = q.options.find(o => 
-          verified.optionIds.includes(o.id) || 
-          verified.optionIds.includes(o.element?.getAttribute('value')) ||
-          verified.optionIds.includes(o.element?.value) || 
-          verified.optionIds.some(id => o.element?.id && o.element.id.endsWith(id))
-        );
-      }
-      if (!target && verified.optionNumbers?.length > 0) {
-        target = q.options.find(o => verified.optionNumbers.includes(o.element?.getAttribute('title')));
-      }
-      if (!target && verified.indices?.length > 0) {
-        target = q.options[verified.indices[0]];
-      }
-      if (!target && verified.letters?.length > 0) {
-        target = q.options.find(o => o.letter?.toUpperCase() === verified.letters[0]);
+      if (q.options && q.options.length > 0) {
+        if (verified.optionIds?.length > 0) {
+          target = q.options.find(o => 
+            verified.optionIds.includes(o.id) || 
+            verified.optionIds.includes(o.element?.getAttribute('value')) ||
+            verified.optionIds.includes(o.element?.value) || 
+            verified.optionIds.some(id => o.element?.id && o.element.id.endsWith(id))
+          );
+        }
+        if (!target && verified.optionNumbers?.length > 0) {
+          target = q.options.find(o => verified.optionNumbers.includes(o.element?.getAttribute('title')));
+        }
+        if (!target && verified.indices?.length > 0) {
+          target = q.options[verified.indices[0]];
+        }
+        if (!target && verified.letters?.length > 0) {
+          target = q.options.find(o => o.letter?.toUpperCase() === verified.letters[0]);
+        }
       }
 
-      if (target) {
-        const radioBtn = target.element;
+      let radioBtn = target?.element;
+      // Fallback: search directly inside q.container
+      if (!radioBtn && q.container) {
+        const domRadios = Array.from(q.container.querySelectorAll('[role="radio"], button[role="radio"], input[type="radio"]'));
+        if (verified.optionIds?.length > 0) {
+          radioBtn = domRadios.find(r => verified.optionIds.includes(r.getAttribute('value')) || verified.optionIds.includes(r.value));
+        }
+        if (!radioBtn && verified.optionNumbers?.length > 0) {
+          radioBtn = domRadios.find(r => verified.optionNumbers.includes(r.getAttribute('title')));
+        }
+        if (!radioBtn && verified.indices?.length > 0 && domRadios[verified.indices[0]]) {
+          radioBtn = domRadios[verified.indices[0]];
+        }
+      }
+
+      if (radioBtn) {
         radioBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
         radioBtn.focus();
         radioBtn.click();
         radioBtn.setAttribute('aria-checked', 'true');
         radioBtn.setAttribute('data-state', 'checked');
-        target.checked = true;
+        if (target) target.checked = true;
         await new Promise(r => setTimeout(r, 80));
 
         if (radioBtn.tagName === 'INPUT') {
@@ -178,65 +223,96 @@ window.UniversalSolver = {
         }
 
         q.isAnswered = true;
-        q.container.style.transition = 'box-shadow 0.3s ease';
-        q.container.style.boxShadow = '0 0 16px rgba(37, 99, 235, 0.4)';
-        setTimeout(() => { if (q.container) q.container.style.boxShadow = ''; }, 2000);
+        if (q.container) {
+          q.container.style.transition = 'box-shadow 0.3s ease';
+          q.container.style.boxShadow = '0 0 16px rgba(37, 99, 235, 0.4)';
+          setTimeout(() => { if (q.container) q.container.style.boxShadow = ''; }, 2000);
+        }
 
-        updateStatus?.(`Verified Selected (${target.letter}): ${target.text.slice(0, 25) || 'Option ' + target.letter}`);
-        return { success: true, answer: target.letter, verified: true };
+        const labelDesc = target?.letter || verified.letters?.[0] || 'Option';
+        updateStatus?.(`Verified Selected (${labelDesc})`);
+        return { success: true, answer: labelDesc, verified: true };
       }
     }
 
     // 3. MSQ / Multi-Choice (Checkboxes)
-    if (verified.type === 'multichoice' && q.options && q.options.length > 0) {
+    if (verified.type === 'multichoice') {
       let checkedCount = 0;
-      for (let idx = 0; idx < q.options.length; idx++) {
-        const opt = q.options[idx];
-        const letter = String.fromCharCode(65 + idx);
-        const shouldBeChecked = 
-          (verified.optionIds?.length && (
-            verified.optionIds.includes(opt.id) || 
-            verified.optionIds.includes(opt.element?.getAttribute('value')) || 
-            verified.optionIds.includes(opt.element?.value) || 
-            verified.optionIds.some(id => opt.element?.id && opt.element.id.endsWith(id))
-          )) ||
-          (verified.optionNumbers?.length && verified.optionNumbers.includes(opt.element?.getAttribute('title'))) ||
-          (verified.indices?.length && verified.indices.includes(idx)) ||
-          (verified.letters?.length && (verified.letters.includes(letter) || verified.letters.includes(opt.letter?.toUpperCase())));
+      const opts = q.options && q.options.length > 0 ? q.options : [];
+      
+      if (opts.length > 0) {
+        for (let idx = 0; idx < opts.length; idx++) {
+          const opt = opts[idx];
+          const letter = String.fromCharCode(65 + idx);
+          const shouldBeChecked = 
+            (verified.optionIds?.length && (
+              verified.optionIds.includes(opt.id) || 
+              verified.optionIds.includes(opt.element?.getAttribute('value')) || 
+              verified.optionIds.includes(opt.element?.value) || 
+              verified.optionIds.some(id => opt.element?.id && opt.element.id.endsWith(id))
+            )) ||
+            (verified.optionNumbers?.length && verified.optionNumbers.includes(opt.element?.getAttribute('title'))) ||
+            (verified.indices?.length && verified.indices.includes(idx)) ||
+            (verified.letters?.length && (verified.letters.includes(letter) || verified.letters.includes(opt.letter?.toUpperCase())));
 
-        const inputEl = opt.element && opt.element.tagName === 'INPUT' ? opt.element : opt.element?.querySelector('input[type="checkbox"]');
-        const roleCheckbox = opt.element?.getAttribute('role') === 'checkbox' ? opt.element : opt.element?.querySelector('[role="checkbox"]');
+          const inputEl = opt.element && opt.element.tagName === 'INPUT' ? opt.element : opt.element?.querySelector('input[type="checkbox"]');
+          const roleCheckbox = opt.element?.getAttribute('role') === 'checkbox' ? opt.element : opt.element?.querySelector('[role="checkbox"]');
 
-        if (inputEl) {
-          if (inputEl.checked !== !!shouldBeChecked) {
-            inputEl.focus();
-            inputEl.click();
-            await new Promise(r => setTimeout(r, 80));
+          if (inputEl) {
             if (inputEl.checked !== !!shouldBeChecked) {
-              inputEl.checked = !!shouldBeChecked;
+              inputEl.focus();
+              inputEl.click();
               inputEl.dispatchEvent(new Event('input', { bubbles: true }));
               inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+              await new Promise(r => setTimeout(r, 60));
             }
+            if (shouldBeChecked) checkedCount++;
+          } else if (roleCheckbox) {
+            const isAriaChecked = roleCheckbox.getAttribute('aria-checked') === 'true' || roleCheckbox.getAttribute('data-state') === 'checked';
+            if (isAriaChecked !== !!shouldBeChecked) {
+              roleCheckbox.focus();
+              roleCheckbox.click();
+              await new Promise(r => setTimeout(r, 80));
+            }
+            if (shouldBeChecked) checkedCount++;
           }
-          if (shouldBeChecked) checkedCount++;
-        } else if (roleCheckbox) {
-          const isAriaChecked = roleCheckbox.getAttribute('aria-checked') === 'true' || roleCheckbox.getAttribute('data-state') === 'checked';
-          if (isAriaChecked !== !!shouldBeChecked) {
-            roleCheckbox.focus();
-            roleCheckbox.click();
-            await new Promise(r => setTimeout(r, 80));
+        }
+      } else if (q.container) {
+        // Direct container checkbox matching
+        const domBoxes = Array.from(q.container.querySelectorAll('input[type="checkbox"], [role="checkbox"]'));
+        for (let bIdx = 0; bIdx < domBoxes.length; bIdx++) {
+          const box = domBoxes[bIdx];
+          const boxVal = box.getAttribute('value') || box.value;
+          const boxTitle = box.getAttribute('title');
+          const shouldBeChecked = 
+            (verified.optionIds?.length && verified.optionIds.includes(boxVal)) ||
+            (verified.optionNumbers?.length && verified.optionNumbers.includes(boxTitle)) ||
+            (verified.indices?.length && verified.indices.includes(bIdx));
+
+          if (box.tagName === 'INPUT') {
+            if (box.checked !== !!shouldBeChecked) {
+              box.click();
+              box.dispatchEvent(new Event('input', { bubbles: true }));
+              box.dispatchEvent(new Event('change', { bubbles: true }));
+              await new Promise(r => setTimeout(r, 60));
+            }
+          } else {
+            const isAriaChecked = box.getAttribute('aria-checked') === 'true' || box.getAttribute('data-state') === 'checked';
+            if (isAriaChecked !== !!shouldBeChecked) box.click();
           }
           if (shouldBeChecked) checkedCount++;
         }
       }
 
       q.isAnswered = true;
-      q.container.style.transition = 'box-shadow 0.3s ease';
-      q.container.style.boxShadow = '0 0 16px rgba(37, 99, 235, 0.4)';
-      setTimeout(() => { if (q.container) q.container.style.boxShadow = ''; }, 2000);
+      if (q.container) {
+        q.container.style.transition = 'box-shadow 0.3s ease';
+        q.container.style.boxShadow = '0 0 16px rgba(37, 99, 235, 0.4)';
+        setTimeout(() => { if (q.container) q.container.style.boxShadow = ''; }, 2000);
+      }
 
-      updateStatus?.(`Verified Checked (${verified.letters.join(', ')}): ${checkedCount} options`);
-      return { success: true, answer: verified.letters.join(', '), verified: true };
+      updateStatus?.(`Verified Checked (${verified.letters?.join(', ') || checkedCount}): ${checkedCount} options`);
+      return { success: true, answer: verified.letters?.join(', ') || `${checkedCount} selected`, verified: true };
     }
 
     return { success: false, message: 'Could not apply verified answer' };
@@ -313,11 +389,11 @@ window.UniversalSolver = {
       // Strategy B: LMS & Angular Question Containers
       if (containers.length === 0) {
         containers = Array.from(document.querySelectorAll(
-          'app-question, .question-card, .question-container, .question-wrapper, [class*="question-view"], mat-card, .mat-mdc-card, .question-pane, div[class*="question"]:not([class*="palette"]):not([class*="nav"])'
+          '.quiz-question-block, [class*="q-block"], app-question, .question-card, .question-container, .question-wrapper, [class*="question-view"], mat-card, .mat-mdc-card, .question-pane, div[class*="question"]:not([class*="palette"]):not([class*="nav"])'
         )).filter(c => {
           if (c.offsetWidth === 0 && c.offsetHeight === 0) return false;
-          const hasOptions = c.querySelector('mat-radio-group, mat-radio-button, mat-checkbox, [role="radio"], [role="checkbox"], input[type="radio"], input[type="checkbox"], input.mat-mdc-input-element, textarea.mat-mdc-input-element, textarea, input[type="text"], input[type="number"], mat-form-field');
-          const hasHeader = /Question\s+\d+/i.test(c.innerText);
+          const hasOptions = c.querySelector('mat-radio-group, mat-radio-button, mat-checkbox, [role="radio"], [role="checkbox"], input[type="radio"], input[type="checkbox"], input.mat-mdc-input-element, textarea.mat-mdc-input-element, textarea, input[type="text"], input[type="number"], mat-form-field, .quiz-options, [class*="options"]');
+          const hasHeader = /Question\s+\d+|Q\d+/i.test(c.innerText);
           return hasOptions || hasHeader;
         });
       }
@@ -355,6 +431,16 @@ window.UniversalSolver = {
         clone.querySelectorAll('annotation[encoding*="tex"], annotation[encoding*="TeX"]').forEach(ann => {
           const parent = ann.closest('mjx-container, .katex, math');
           if (parent) parent.replaceWith(document.createTextNode(` $${ann.textContent}$ `));
+        });
+        clone.querySelectorAll('math, mjx-container, .katex').forEach(m => {
+          const ann = m.querySelector('annotation');
+          if (ann) m.replaceWith(document.createTextNode(` $${ann.textContent}$ `));
+        });
+        clone.querySelectorAll('img').forEach(img => {
+          const alt = img.getAttribute('alt') || img.getAttribute('title') || '';
+          if (alt && !alt.toLowerCase().includes('logo') && !alt.toLowerCase().includes('icon')) {
+            img.replaceWith(document.createTextNode(` ${alt} `));
+          }
         });
         clone.querySelectorAll('mat-radio-group, .options, .options-container, [role="radiogroup"], button, .flag-btn, [class*="flag"], [class*="clear-selection"], textarea, mat-form-field, [class*="your-answer"], script, style').forEach(el => el.remove());
 
@@ -399,7 +485,7 @@ window.UniversalSolver = {
         if (uniqueRadios.length >= 2) {
           const options = uniqueRadios.map((r, i) => {
             const innerInput = r.tagName === 'INPUT' ? r : r.querySelector('input[type="radio"]');
-            const labelEl = (r.id ? document.querySelector(`label[for="${r.id}"]`) : null) || r.closest('label') || r.parentElement;
+            const labelEl = (r.id ? document.querySelector(`label[for="${r.id}"]`) : null) || r.closest('label') || r.parentElement?.querySelector('label') || r.parentElement;
 
             let labelText = '';
             if (labelEl) {
@@ -424,11 +510,14 @@ window.UniversalSolver = {
             const letter = letterMatch ? letterMatch[1].toUpperCase() : String.fromCharCode(65 + i);
             const cleanText = labelText.replace(/^[A-D][\.\)\:\-]\s*/i, '').trim();
 
+            const liParent = r.closest('li, [class*="option"]');
             const isChecked = (innerInput && innerInput.checked) || 
+                              r.checked ||
                               r.classList.contains('mat-mdc-radio-checked') || 
                               r.classList.contains('mat-radio-checked') ||
                               r.getAttribute('aria-checked') === 'true' ||
-                              r.getAttribute('data-state') === 'checked';
+                              r.getAttribute('data-state') === 'checked' ||
+                              (liParent && (liParent.classList.contains('selected') || liParent.classList.contains('active') || liParent.classList.contains('correct') || liParent.classList.contains('wrong')));
 
             const optId = r.getAttribute('value') || r.value || innerInput?.value || r.id?.replace(/^r[12]\d*/, '') || null;
 
@@ -571,7 +660,28 @@ window.UniversalSolver = {
     if (moodleQuestions.length > 0) {
       for (const q of moodleQuestions) {
         if (q.offsetWidth === 0 && q.offsetHeight === 0) continue;
-        const qText = q.querySelector('.qtext')?.innerText?.trim() || '';
+        const qTextEl = q.querySelector('.qtext');
+        let qText = '';
+        if (qTextEl) {
+          const cloneMoodle = qTextEl.cloneNode(true);
+          cloneMoodle.querySelectorAll('annotation[encoding*="tex"], annotation[encoding*="TeX"]').forEach(ann => {
+            const parent = ann.closest('mjx-container, .katex, math');
+            if (parent) parent.replaceWith(document.createTextNode(` $${ann.textContent}$ `));
+          });
+          cloneMoodle.querySelectorAll('math, mjx-container, .katex').forEach(m => {
+            const ann = m.querySelector('annotation');
+            if (ann) m.replaceWith(document.createTextNode(` $${ann.textContent}$ `));
+          });
+          cloneMoodle.querySelectorAll('img').forEach(img => {
+            const alt = img.getAttribute('alt') || img.getAttribute('title') || '';
+            if (alt && !alt.toLowerCase().includes('theme') && !alt.toLowerCase().includes('icon')) {
+              img.replaceWith(document.createTextNode(` ${alt} `));
+            }
+          });
+          qText = cloneMoodle.innerText.trim();
+        } else {
+          qText = q.querySelector('.formulation')?.innerText?.trim() || '';
+        }
         const image = q.querySelector('.qtext img, .formulation img:not([src*="theme/image.php"]):not([src*="unflagged"]):not([src*="core"])');
 
         // Check A: Drag and Drop into text (ddwtos / blanks)
@@ -1175,9 +1285,15 @@ window.UniversalSolver = {
   },
 
   // Locates the Next / Continue / Next Page button (NOT submit/finish)
-  findNextButton() {
-    // 1. Direct platform CSS class / name / ID selectors (Moodle, Canvas, Blackboard, Angular Material)
+  findNextButton(options = {}) {
+    const { includeDisabled = false } = options;
+
+    // 1. Direct platform CSS class / name / ID selectors (Moodle, Canvas, Blackboard, Angular Material, MCQExamTest)
     const explicitSelector = [
+      '#btnNext',
+      'button#btnNext',
+      '.btn-next',
+      '.next-btn',
       'input.mod_quiz-next-nav',
       'button.mod_quiz-next-nav',
       '#mod_quiz-next-nav',
@@ -1185,8 +1301,6 @@ window.UniversalSolver = {
       'button[name="next"]',
       'button.next-button',
       '.next-button',
-      '.btn-next',
-      '.next-btn',
       '.button-next',
       'a.next_page',
       '#bottom_next_button',
@@ -1194,11 +1308,11 @@ window.UniversalSolver = {
       'a[aria-label*="Next"]',
       'button[aria-label*="Next"]',
       'input[aria-label*="Next"]',
-      'button.mat-mdc-button[class*="next"]:not([disabled])',
-      'button.mat-button[class*="next"]:not([disabled])'
+      'button.mat-mdc-button[class*="next"]',
+      'button.mat-button[class*="next"]'
     ].join(', ');
     const explicit = document.querySelector(explicitSelector);
-    if (explicit && !explicit.closest('#peslms-autopilot-root') && explicit.offsetWidth > 0 && explicit.offsetHeight > 0 && explicit.style.display !== 'none' && !explicit.disabled) {
+    if (explicit && !explicit.closest('#peslms-autopilot-root') && explicit.offsetWidth > 0 && explicit.offsetHeight > 0 && explicit.style.display !== 'none' && !explicit.hidden && (includeDisabled || (!explicit.disabled && !explicit.hasAttribute('disabled')))) {
       const explicitTxt = (explicit.innerText || explicit.value || '').toLowerCase();
       if (!explicitTxt.includes('submit') && !explicitTxt.includes('prev')) {
         return explicit;
@@ -1209,11 +1323,12 @@ window.UniversalSolver = {
     const candidates = Array.from(document.querySelectorAll('button, a, input[type="button"], input[type="submit"], div[role="button"]'));
     return candidates.find(b => {
       if (b.closest('#peslms-autopilot-root')) return false;
-      if (b.offsetWidth === 0 || b.offsetHeight === 0 || b.style.display === 'none') return false;
-      if (b.disabled || b.hasAttribute('disabled') || b.getAttribute('aria-disabled') === 'true' || b.classList.contains('mat-button-disabled') || b.classList.contains('disabled')) return false;
+      if (b.offsetWidth === 0 || b.offsetHeight === 0 || b.style.display === 'none' || b.hidden) return false;
+      if (!includeDisabled && (b.disabled || b.hasAttribute('disabled') || b.getAttribute('aria-disabled') === 'true' || b.classList.contains('mat-button-disabled') || b.classList.contains('disabled'))) return false;
       if (b.closest('#confirm-modal, .modal:not(.show)') && getComputedStyle(b.closest('#confirm-modal, .modal')).display === 'none') return false;
 
-      const txt = (b.innerText || b.value || b.getAttribute('aria-label') || b.title || '').trim().toLowerCase();
+      const rawTxt = (b.innerText || b.value || b.getAttribute('aria-label') || b.title || '').trim().toLowerCase();
+      const txt = rawTxt.replace(/[\u2192\u2190\u203A\u00BB\u25B6\u27A1>→»]/g, '').trim();
       const name = (b.name || '').toLowerCase();
       const id = (b.id || '').toLowerCase();
       const cls = (b.className || '').toLowerCase();
@@ -1229,23 +1344,24 @@ window.UniversalSolver = {
         txt.includes('next page') ||
         txt.includes('next question') ||
         txt.includes('next section') ||
-        txt.includes('next →') ||
-        txt.includes('next >') ||
         txt.includes('save & next') ||
         txt.includes('save and next') ||
         txt.includes('save & continue') ||
         txt.includes('continue') ||
         txt.includes('proceed') ||
-        txt === '>' ||
-        txt === '>>' ||
-        txt === '→' ||
-        txt === '»'
+        rawTxt === '>' ||
+        rawTxt === '>>' ||
+        rawTxt === '→' ||
+        rawTxt === '»'
       );
 
       // Attribute matches
       const isNextAttr = (
         name === 'next' ||
+        id === 'btnnext' ||
         id.includes('next') ||
+        cls.includes('btn-next') ||
+        cls.includes('next-btn') ||
         cls.includes('next') ||
         b.getAttribute('data-action') === 'next'
       );
@@ -1256,8 +1372,8 @@ window.UniversalSolver = {
 
   // Locates numbered circular question palette elements (e.g. 1..17 on IITM / Swayam)
   findNextPaletteButton() {
-    // Strategy 1: Header awareness (e.g. "Question 5 / 17")
-    const headerMatch = document.body.innerText.match(/Question\s+(\d+)\s*\/\s*(\d+)/i);
+    // Strategy 1: Header awareness (e.g. "Question 5 / 17" or "Question 5 of 25")
+    const headerMatch = document.body.innerText.match(/Question\s+(\d+)\s*(?:\/|\bof\b)\s*(\d+)/i);
     let nextTargetNum = null;
     if (headerMatch) {
       const cur = parseInt(headerMatch[1], 10);
@@ -1305,9 +1421,11 @@ window.UniversalSolver = {
     const candidates = Array.from(document.querySelectorAll('button, a, input[type="button"], input[type="submit"], div[role="button"]'));
     return candidates.find(b => {
       if (b.closest('#peslms-autopilot-root')) return false;
-      if (b.offsetWidth === 0 || b.offsetHeight === 0 || b.style.display === 'none') return false;
+      if (b.offsetWidth === 0 || b.offsetHeight === 0 || b.style.display === 'none' || b.hidden) return false;
       if (b.disabled || b.hasAttribute('disabled') || b.getAttribute('aria-disabled') === 'true' || b.classList.contains('mat-button-disabled') || b.classList.contains('disabled')) return false;
+      if (b.closest('#reportModal, #reportModalOverlay, .mx-dialog--report, [id*="report"], [class*="report"]')) return false;
       const txt = (b.innerText || b.value || b.getAttribute('aria-label') || '').trim().toLowerCase();
+      if (txt.includes('report') || txt.includes('feedback') || txt.includes('cancel') || txt.includes('prev') || txt.includes('close')) return false;
       return (
         txt.includes('finish attempt') ||
         txt.includes('submit all') ||
@@ -1331,6 +1449,21 @@ window.UniversalSolver = {
 
   // Detect if page shows a completion/thank-you/submitted state
   isQuizComplete() {
+    // 1. If active questions are detected on the page, the quiz is definitely NOT complete!
+    const questions = this.detectAllQuestions();
+    if (questions.length > 0) {
+      // Check pagination e.g. "Question 1 of 25"
+      const headerMatch = document.body?.innerText?.match(/Question\s+(\d+)\s*(?:\/|\bof\b)\s*(\d+)/i);
+      if (headerMatch) {
+        const cur = parseInt(headerMatch[1], 10);
+        const tot = parseInt(headerMatch[2], 10);
+        if (cur < tot) return false;
+      }
+      // If there are unanswered questions or a Next button is available, not complete
+      if (questions.some(q => !q.isAnswered)) return false;
+      if (this.findNextButton()) return false;
+    }
+
     const body = document.body?.innerText?.toLowerCase() || '';
     const completionPhrases = [
       'your attempt has been submitted',
@@ -1341,9 +1474,34 @@ window.UniversalSolver = {
       'attempt finished',
       'your answers have been submitted',
       'submission successful',
-      'you have completed'
+      'you have completed the quiz',
+      'you have completed this quiz',
+      'you have completed this test',
+      'congratulations, you have finished',
+      'assessment submitted and complete'
     ];
-    return completionPhrases.some(phrase => body.includes(phrase));
+
+    if (completionPhrases.some(phrase => body.includes(phrase))) {
+      return true;
+    }
+
+    // Modal dialog with congratulations or score (MUST be currently visible!)
+    const modals = Array.from(document.querySelectorAll('.modal.show, .modal[style*="display: block"], [role="dialog"]:not([hidden]):not([style*="display: none"]), div[class*="dialog"]:not([hidden]):not([style*="display: none"])'));
+    for (const modal of modals) {
+      if (modal.closest('#peslms-autopilot-root')) continue;
+      if (modal.offsetWidth === 0 || modal.offsetHeight === 0) continue;
+      const modalText = (modal.innerText || '').toLowerCase();
+      if (
+        (modalText.includes('congratulations') && modalText.includes('score')) ||
+        modalText.includes('quiz completed') ||
+        modalText.includes('quiz submitted') ||
+        modalText.includes('results summary')
+      ) {
+        return true;
+      }
+    }
+
+    return false;
   },
 
   // Find Moodle-style confirmation submit button (the second "Submit all and finish" on the confirmation page / modal)
@@ -1900,15 +2058,30 @@ window.UniversalSolver = {
       const radioBtn = target.element;
       radioBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
       radioBtn.focus();
-      radioBtn.click();
-      await new Promise(r => setTimeout(r, 80));
+
+      const parentOption = radioBtn.closest('li, label, .option, .quiz-options li, mat-radio-button, [role="radio"]') || radioBtn;
+      ['pointerdown', 'mousedown', 'mouseup', 'click'].forEach(evt => {
+        try {
+          parentOption.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window }));
+          if (parentOption !== radioBtn) {
+            radioBtn.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window }));
+          }
+        } catch (e) {}
+      });
+      try { radioBtn.click(); } catch (e) {}
+      try { if (parentOption !== radioBtn) parentOption.click(); } catch (e) {}
 
       if (radioBtn.tagName === 'INPUT') {
         radioBtn.checked = true;
         radioBtn.dispatchEvent(new Event('input', { bubbles: true }));
         radioBtn.dispatchEvent(new Event('change', { bubbles: true }));
       }
+      const liParent = radioBtn.closest('li');
+      if (liParent) {
+        liParent.classList.add('selected');
+      }
       q.isAnswered = true;
+      await new Promise(r => setTimeout(r, 200));
 
       q.container.style.transition = 'box-shadow 0.3s ease';
       q.container.style.boxShadow = '0 0 16px rgba(37, 99, 235, 0.4)';
@@ -2087,18 +2260,24 @@ window.UniversalSolver = {
 
   // Solves current/active question (Single click mode)
   async solve(updateStatus) {
+    await this.ensureVerifiedPageAnswers();
     const currentQ = this.detectCurrentQuestion();
     if (!currentQ) {
       updateStatus?.('Could not detect question.');
       return { success: false, message: 'Could not detect question.' };
     }
-    return await this.solveQuestionItem(currentQ, updateStatus);
+    const res = await this.solveQuestionItem(currentQ, updateStatus);
+    if (res && currentQ.questionNum !== undefined) {
+      res.questionNum = currentQ.questionNum;
+    }
+    return res;
   },
 
   // ══════════════════════════════════════════════════════════════
   //  CORE: Solve all questions on the current page (shared logic)
   // ══════════════════════════════════════════════════════════════
-  async _solveAllOnPage(updateStatus, isRunningCallback) {
+  async _solveAllOnPage(updateStatus, isRunningCallback = () => true) {
+    await this.ensureVerifiedPageAnswers();
     const questions = this.detectAllQuestions();
     if (!questions.length) {
       updateStatus?.('No questions found on this page.');
@@ -2195,15 +2374,15 @@ window.UniversalSolver = {
   // ══════════════════════════════════════════════════════════════
   //  MODE: DRAFT ONLY — Solve questions across all pages, never submit
   // ══════════════════════════════════════════════════════════════
-  async _runDraftMode(updateStatus, isRunningCallback) {
+  async _runDraftMode(updateStatus, isRunningCallback = () => true) {
     let pagesProcessed = 0;
     let consecutiveEmptyCount = 0;
 
     while (isRunningCallback() && pagesProcessed < 50) {
       pagesProcessed++;
 
-      // Check current question & total questions from header (e.g. "Question 5 / 17")
-      const headerMatch = document.body.innerText.match(/Question\s+(\d+)\s*\/\s*(\d+)/i);
+      // Check current question & total questions from header (e.g. "Question 5 / 17" or "Question 1 of 25")
+      const headerMatch = document.body.innerText.match(/Question\s+(\d+)\s*(?:\/|\bof\b)\s*(\d+)/i);
       const currentQNum = headerMatch ? parseInt(headerMatch[1], 10) : pagesProcessed;
       const totalQNum = headerMatch ? parseInt(headerMatch[2], 10) : null;
       const label = totalQNum ? `Question ${currentQNum} of ${totalQNum}` : `Page ${pagesProcessed}`;
@@ -2238,21 +2417,31 @@ window.UniversalSolver = {
       }
 
       // If we have answered or scanned the final question, stop cleanly
-      if (totalQNum && currentQNum >= totalQNum) {
+      const isLastQuestion = totalQNum && currentQNum >= totalQNum;
+      if (isLastQuestion) {
         await chrome.storage.local.remove(['autopilotBatchState']);
         updateStatus?.(`✅ All ${totalQNum} questions drafted! Review and submit manually.`);
         return;
       }
 
-      // Check for Next page button or Question Palette button
-      const nextBtn = this.findNextButton() || this.findNextPaletteButton();
+      // Check for Next page button or Question Palette button (wait up to 3.5s for async validation/API checks)
+      let nextBtn = this.findNextButton() || this.findNextPaletteButton();
+      if (!nextBtn) {
+        const pollStart = Date.now();
+        while (Date.now() - pollStart < 3500 && isRunningCallback()) {
+          await new Promise(r => setTimeout(r, 250));
+          nextBtn = this.findNextButton() || this.findNextPaletteButton();
+          if (nextBtn) break;
+        }
+      }
+
       if (nextBtn) {
-        updateStatus?.(`[Draft] Advancing to next question…`);
+        updateStatus?.(`[Draft] Question ${currentQNum} answered. Advancing…`);
         const state = { active: true, mode: 'draft' };
         await chrome.storage.local.set({ autopilotBatchState: state });
 
         nextBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        await new Promise(r => setTimeout(r, 400));
+        await new Promise(r => setTimeout(r, 300));
         
         // Full event cascade for Angular Material 18 & web components
         const innerTarget = nextBtn.querySelector('.mdc-button__label, .mat-mdc-button-touch-target') || nextBtn;
@@ -2274,13 +2463,36 @@ window.UniversalSolver = {
         continue;
       }
 
-      // Fallback for SPAs that only support keyboard arrows
+      // Fallback for SPAs that only support keyboard arrows or have disabled next buttons
       if (totalQNum && currentQNum < totalQNum) {
-        updateStatus?.(`[Draft] Advancing via ArrowRight…`);
+        const disabledNext = this.findNextButton({ includeDisabled: true });
+        if (disabledNext) {
+          updateStatus?.(`Waiting for Next button to activate on Q${currentQNum}…`);
+          let waited = 0;
+          while (waited < 3000 && (disabledNext.disabled || disabledNext.hasAttribute('disabled')) && isRunningCallback()) {
+            await new Promise(r => setTimeout(r, 300));
+            waited += 300;
+          }
+          if (!disabledNext.disabled && !disabledNext.hasAttribute('disabled')) {
+            disabledNext.click();
+            await new Promise(r => setTimeout(r, 1600));
+            continue;
+          }
+        }
+
+        updateStatus?.(`[Draft] Advancing to Q${currentQNum + 1}…`);
         window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39, bubbles: true }));
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39, bubbles: true }));
         await new Promise(r => setTimeout(r, 1600));
-        continue;
+
+        const postMatch = document.body.innerText.match(/Question\s+(\d+)\s*(?:\/|\bof\b)\s*(\d+)/i);
+        const postQNum = postMatch ? parseInt(postMatch[1], 10) : currentQNum;
+        if (postQNum > currentQNum) {
+          continue;
+        }
+
+        updateStatus?.(`⚠️ Q${currentQNum} answered, but could not advance to Q${currentQNum + 1}. Auto-Pilot paused.`);
+        return;
       }
 
       // Reached final page
@@ -2293,7 +2505,7 @@ window.UniversalSolver = {
   // ══════════════════════════════════════════════════════════════
   //  MODE: FULL SUBMIT — Solve + navigate + submit with confirm
   // ══════════════════════════════════════════════════════════════
-  async _runSubmitMode(updateStatus, isRunningCallback) {
+  async _runSubmitMode(updateStatus, isRunningCallback = () => true) {
     let pagesProcessed = 0;
     let consecutiveEmptyCount = 0;
 
@@ -2306,7 +2518,7 @@ window.UniversalSolver = {
         return;
       }
 
-      const headerMatch = document.body.innerText.match(/Question\s+(\d+)\s*\/\s*(\d+)/i);
+      const headerMatch = document.body.innerText.match(/Question\s+(\d+)\s*(?:\/|\bof\b)\s*(\d+)/i);
       const currentQNum = headerMatch ? parseInt(headerMatch[1], 10) : pagesProcessed;
       const totalQNum = headerMatch ? parseInt(headerMatch[2], 10) : null;
       const label = totalQNum ? `Question ${currentQNum} of ${totalQNum}` : `Page ${pagesProcessed}`;
@@ -2362,11 +2574,20 @@ window.UniversalSolver = {
       // If not on final question, advance
       const isLastQuestion = totalQNum && currentQNum >= totalQNum;
       if (!isLastQuestion) {
-        const nextBtn = this.findNextButton() || this.findNextPaletteButton();
+        let nextBtn = this.findNextButton() || this.findNextPaletteButton();
+        if (!nextBtn) {
+          const pollStart = Date.now();
+          while (Date.now() - pollStart < 3500 && isRunningCallback()) {
+            await new Promise(r => setTimeout(r, 250));
+            nextBtn = this.findNextButton() || this.findNextPaletteButton();
+            if (nextBtn) break;
+          }
+        }
+
         if (nextBtn) {
           updateStatus?.(`[Submit] Question ${currentQNum} answered. Advancing…`);
           nextBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          await new Promise(r => setTimeout(r, 400));
+          await new Promise(r => setTimeout(r, 300));
           
           const innerTarget = nextBtn.querySelector('.mdc-button__label, .mat-mdc-button-touch-target') || nextBtn;
           ['pointerdown', 'mousedown', 'mouseup', 'click'].forEach(evt => {
@@ -2388,62 +2609,63 @@ window.UniversalSolver = {
         }
 
         if (totalQNum && currentQNum < totalQNum) {
+          const disabledNext = this.findNextButton({ includeDisabled: true });
+          if (disabledNext) {
+            updateStatus?.(`Waiting for Next button to activate on Q${currentQNum}…`);
+            let waited = 0;
+            while (waited < 3000 && (disabledNext.disabled || disabledNext.hasAttribute('disabled')) && isRunningCallback()) {
+              await new Promise(r => setTimeout(r, 300));
+              waited += 300;
+            }
+            if (!disabledNext.disabled && !disabledNext.hasAttribute('disabled')) {
+              disabledNext.click();
+              await new Promise(r => setTimeout(r, 1600));
+              continue;
+            }
+          }
+
+          updateStatus?.(`[Submit] Advancing to Q${currentQNum + 1}…`);
           window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39, bubbles: true }));
           document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39, bubbles: true }));
           await new Promise(r => setTimeout(r, 1600));
-          continue;
+
+          const postMatch = document.body.innerText.match(/Question\s+(\d+)\s*(?:\/|\bof\b)\s*(\d+)/i);
+          const postQNum = postMatch ? parseInt(postMatch[1], 10) : currentQNum;
+          if (postQNum > currentQNum) {
+            continue;
+          }
+
+          updateStatus?.(`⚠️ Q${currentQNum} answered, but could not advance to Q${currentQNum + 1}. Auto-Pilot paused.`);
+          return;
         }
       }
 
-      // Final question reached: Look for submit/finish
-      const submitBtn = this.findSubmitButton();
-      if (submitBtn) {
-        updateStatus?.('[Submit] All questions answered. Submitting assessment…');
-        submitBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        await new Promise(r => setTimeout(r, 800));
-        submitBtn.click();
-        await new Promise(r => setTimeout(r, 3000));
+      // Final question reached: ONLY search for submit if isLastQuestion is true or totalQNum is unknown
+      if (isLastQuestion || !totalQNum) {
+        const submitBtn = this.findSubmitButton();
+        if (submitBtn) {
+          updateStatus?.('[Submit] All questions answered. Submitting assessment…');
+          submitBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          await new Promise(r => setTimeout(r, 600));
+          submitBtn.click();
+          await new Promise(r => setTimeout(r, 1500));
 
-        const confirmBtn = this.findConfirmSubmitButton(submitBtn);
-        if (confirmBtn) {
-          updateStatus?.('[Submit] Confirming final submission…');
-          await new Promise(r => setTimeout(r, 500));
-          confirmBtn.click();
-          await new Promise(r => setTimeout(r, 3000));
-        }
+          const confirmBtn = this.findConfirmSubmitButton(submitBtn);
+          if (confirmBtn) {
+            updateStatus?.('[Submit] Confirming final submission…');
+            await new Promise(r => setTimeout(r, 500));
+            confirmBtn.click();
+            await new Promise(r => setTimeout(r, 1500));
+          }
 
-        if (this.isQuizComplete()) {
           updateStatus?.('✅ Assessment submitted and complete! 🎉');
           return;
         }
-        continue;
+
+        // Nothing to click — we're done
+        updateStatus?.('✅ All questions answered! No submit button found — review manually.');
+        return;
       }
-      if (submitBtn) {
-        updateStatus?.('[Submit] All questions answered. Submitting quiz…');
-        submitBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        await new Promise(r => setTimeout(r, 800));
-        submitBtn.click();
-        await new Promise(r => setTimeout(r, 3000));
-
-        // Moodle double-confirm pattern
-        const confirmBtn = this.findConfirmSubmitButton(submitBtn);
-        if (confirmBtn) {
-          updateStatus?.('[Submit] Confirming final submission…');
-          await new Promise(r => setTimeout(r, 500));
-          confirmBtn.click();
-          await new Promise(r => setTimeout(r, 3000));
-        }
-
-        if (this.isQuizComplete()) {
-          updateStatus?.('✅ Quiz submitted and complete! 🎉');
-          return;
-        }
-        continue;
-      }
-
-      // Nothing to click — we're done
-      updateStatus?.('✅ All questions answered! No submit button found — review manually.');
-      return;
     }
   },
 
@@ -2657,6 +2879,7 @@ window.UniversalSolver = {
   // ══════════════════════════════════════════════════════════════
   async startAutoPilot(updateStatus, isRunningCallback, mode = 'draft') {
     console.log(`[Autopilot AI] Starting in mode: ${mode}`);
+    try { await this.ensureVerifiedPageAnswers(); } catch (e) {}
 
     // Mode 1: Draft Only (advances across all pages, never submits final attempt)
     if (mode === 'draft') {

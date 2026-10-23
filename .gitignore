@@ -25,3 +25,6 @@ __pycache__/
 *.pyc
 scratch/
 .temp/
+user_test_runs/
+tests/*.png
+*.zip

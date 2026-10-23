@@ -211,7 +211,12 @@ async function getAvailableGroqModels(apiKey) {
                    !low.includes('guard') && 
                    !low.includes('embed') && 
                    !low.includes('moderation') &&
-                   !low.includes('audio');
+                   !low.includes('audio') &&
+                   !low.includes('orpheus') &&
+                   !low.includes('canopylabs') &&
+                   !low.includes('tts') &&
+                   !low.includes('stt') &&
+                   !low.includes('speech');
           });
 
         if (textModels.length > 0) {
@@ -293,7 +298,7 @@ async function callGroq(apiKey, prompt, imageBase64 = null, system = '') {
             { role: 'user', content: userMessageContent }
           ],
           temperature: 0.1,
-          max_tokens: 350
+          max_tokens: 2048
         })
       });
 

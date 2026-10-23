@@ -59,6 +59,17 @@
         "<all_urls>"
       ],
       "js": [
+        "content/inject-page.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true,
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
         "content/ai-engine.js",
         "content/solver-h5p.js",
         "content/solver-quiz.js",

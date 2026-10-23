@@ -1,5 +1,52 @@
-// Runs directly in page context (shares window.H5P across main window and all iframes)
+// Runs directly in page context (shares window.H5P and Vue/Inertia state across main window and all iframes)
 (function() {
+
+  // ── Inertia.js & Vue 3 Page State Bridge ──
+  function syncInertiaProps() {
+    try {
+      const app = document.getElementById('app') || document.querySelector('[data-page], [data-inertia-props]');
+      const page = app?.__vue_app__?.config?.globalProperties?.$page;
+      if (page && page.props && app) {
+        window.__PESLMS_INERTIA_PROPS__ = {
+          props: page.props,
+          url: page.url
+        };
+        const payload = JSON.stringify({
+          props: page.props,
+          url: page.url
+        });
+        if (app.getAttribute('data-inertia-props') !== payload) {
+          app.setAttribute('data-inertia-props', payload);
+        }
+        if (document.documentElement && document.documentElement.getAttribute('data-inertia-props') !== payload) {
+          document.documentElement.setAttribute('data-inertia-props', payload);
+        }
+      }
+    } catch (e) {}
+  }
+
+  syncInertiaProps();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', syncInertiaProps);
+  }
+  // Periodically ensure state stays synced when navigating Vue SPA pages
+  const syncTimer = setInterval(syncInertiaProps, 500);
+
+  // Hook into Vue / Inertia router events
+  ['inertia:navigate', 'inertia:success', 'inertia:finish', 'popstate', 'hashchange'].forEach(evt => {
+    window.addEventListener(evt, () => setTimeout(syncInertiaProps, 50));
+    document.addEventListener(evt, () => setTimeout(syncInertiaProps, 50));
+  });
+
+  // Observe DOM mutations to catch client-side Vue updates
+  try {
+    const observer = new MutationObserver(() => syncInertiaProps());
+    const target = document.getElementById('app') || document.body || document.documentElement;
+    if (target) {
+      observer.observe(target, { childList: true, subtree: true });
+    }
+  } catch (e) {}
+
   function getH5PContext() {
     // 1. Direct window check
     if (window.H5P && window.H5P.instances && window.H5P.instances.length > 0) {
@@ -36,6 +83,18 @@
 
   window.addEventListener('message', async (e) => {
     if (e.data?.source !== 'PESLMS_EXTENSION') return;
+
+    if (e.data.type === 'GET_PAGE_DATA') {
+      syncInertiaProps();
+      const app = document.getElementById('app') || document.querySelector('[data-page], [data-inertia-props]');
+      const page = app?.__vue_app__?.config?.globalProperties?.$page;
+      window.postMessage({
+        source: 'PESLMS_PAGE',
+        type: 'PAGE_DATA_RESULT',
+        data: page?.props ? { props: page.props, url: page.url } : null
+      }, '*');
+      return;
+    }
 
     if (e.data.type === 'EXEC_SOLVE_H5P') {
       let result = { success: false, message: 'No H5P instance found' };
