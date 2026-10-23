@@ -158,6 +158,7 @@
   vertical-align: middle !important;
   letter-spacing: 0.04em !important;
   display: inline-block !important;
+  text-transform: none !important;
 }
 
 .peslms-header-ctrls {

@@ -1621,6 +1621,7 @@ window.UniversalSolver = {
         }
       }
 
+      let aiRes;
       if (isNAT) {
         updateStatus?.(`Calculating NAT numerical value...`);
         aiRes = await window.AIEngine.solveNATAnswer(q.text, q.image, portalHint);
