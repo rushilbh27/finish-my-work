@@ -440,6 +440,54 @@ async function runMonitoredTests() {
     }
     console.log('🎉 IITM ONLINE DEGREE ASSESSMENT: 100% COMPATIBLE & SOLVED!');
 
+    // ── TEST 7: IITM Sidebar Graded-Only Filtering & Start Assessment Button ──
+    console.log('\n[TEST 7] Testing IITM Sidebar Graded Filtering & Start Assessment Button...');
+    const iitmSidebarValidation = await page.evaluate(() => {
+      // Mock the IITM sidebar DOM
+      const sidebar = document.createElement('div');
+      sidebar.className = 'sidebar';
+      sidebar.innerHTML = `
+        <div role="listitem">Week 03 - Tutorial 07<br>Video</div>
+        <div role="listitem">Week 03 - Tutorial 08<br>Video</div>
+        <div role="listitem">Practice Assignment - Not Graded (Week 3)<br>Assignment</div>
+        <div role="listitem">Practice Assignment (Extra Practice )<br>Assignment</div>
+        <div role="listitem" id="target-graded-3">Week 3 - Graded Assignment 3<br>Assignment</div>
+        <div role="listitem" id="target-graded-4">Week 4 - Graded Assignment 4<br>Assignment</div>
+      `;
+      document.body.appendChild(sidebar);
+
+      const links = window.UniversalSolver.findAssignmentLinks();
+      
+      // Also test landing page Start Assessment button
+      const startBtn = document.createElement('button');
+      startBtn.className = 'btn';
+      startBtn.innerText = 'Start Assessment →';
+      document.body.appendChild(startBtn);
+
+      const foundStart = window.UniversalSolver.findStartAttemptButton();
+
+      sidebar.remove();
+      startBtn.remove();
+
+      return {
+        linksCount: links.length,
+        linkTitles: links.map(l => l.title),
+        foundStartText: foundStart?.innerText?.trim()
+      };
+    });
+
+    console.log('✓ IITM Filtered links:', iitmSidebarValidation.linkTitles);
+    console.log('✓ Found Start Attempt button:', iitmSidebarValidation.foundStartText);
+    if (iitmSidebarValidation.linksCount !== 2 || 
+        !iitmSidebarValidation.linkTitles[0].includes('Graded Assignment 3') || 
+        !iitmSidebarValidation.linkTitles[1].includes('Graded Assignment 4')) {
+      throw new Error(`Graded filter test failed: ${JSON.stringify(iitmSidebarValidation)}`);
+    }
+    if (iitmSidebarValidation.foundStartText !== 'Start Assessment →') {
+      throw new Error(`Start Assessment button not found: ${iitmSidebarValidation.foundStartText}`);
+    }
+    console.log('🎉 IITM GRADED-ONLY FILTERING & START ASSESSMENT: 100% VERIFIED!');
+
     console.log('\n══════════════════════════════════════════════════════════════');
     console.log('✅ ALL MONITORED TESTS PASSED FLAWLESSLY! 100% OPERATIONAL');
     console.log('   - Question 4 Icon Matching: 5/5 Matches Correct');
@@ -449,7 +497,9 @@ async function runMonitoredTests() {
     console.log('   - Mode 3 (Course Batch): All Quizzes Solved End-to-End');
     console.log('   - Mode 4 (All Courses): Multi-Course Sweep Operational');
     console.log('   - Paginated Quizzes: 1-Q-Per-Page Next Flow 100% Solved & Advanced');
-    console.log('   - IITM Online Degree (seek.onlinedegree.iitm.ac.in): 100% Solved');
+    console.log('   - IITM Online Degree Assessment (seek.onlinedegree.iitm.ac.in): 100% Solved');
+    console.log('   - IITM Graded-Only Sidebar Filter: Practice/Not Graded Skipped, Graded Selected');
+    console.log('   - IITM Landing Page: "Start Assessment →" Detected');
     console.log('══════════════════════════════════════════════════════════════\n');
 
   } catch (err) {

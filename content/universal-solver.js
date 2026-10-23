@@ -696,14 +696,19 @@ window.UniversalSolver = {
     return inView || all[0];
   },
 
-  // Locates the Start / Attempt Quiz button on landing pages (view.php)
+  // Locates the Start / Attempt Quiz button on landing pages (view.php, IITM landing page)
   findStartAttemptButton() {
     const candidates = Array.from(document.querySelectorAll('button, a, input[type="submit"], input[type="button"], div[role="button"]'));
     return candidates.find(b => {
       if (b.offsetWidth === 0 || b.offsetHeight === 0 || b.style.display === 'none') return false;
+      if (b.disabled || b.hasAttribute('disabled') || b.getAttribute('aria-disabled') === 'true') return false;
       const txt = (b.innerText || b.value || b.getAttribute('aria-label') || '').trim().toLowerCase();
       const href = (b.href || '').toLowerCase();
       return (
+        txt.includes('start assessment') ||
+        txt.includes('begin assessment') ||
+        txt.includes('start assignment') ||
+        txt.includes('take assessment') ||
         txt.includes('attempt quiz') ||
         txt.includes('continue the last attempt') ||
         txt.includes('re-attempt quiz') ||
@@ -935,28 +940,99 @@ window.UniversalSolver = {
     });
   },
 
-  // Find assignment links in course page (Moodle, Canvas, etc.)
+  // Find assignment links in course page (Moodle, Canvas, IITM Online Degree, etc.)
   findAssignmentLinks() {
     const links = [];
-    // Moodle activity links
+    const seen = new Set();
+
+    // Helper to check if a title should be excluded (ungraded / practice)
+    const isExcluded = (title) => {
+      const lower = title.toLowerCase();
+      return (
+        lower.includes('not graded') ||
+        lower.includes('ungraded') ||
+        lower.includes('extra practice') ||
+        lower.includes('practice assignment') ||
+        (lower.includes('practice') && !lower.includes('graded'))
+      );
+    };
+
+    // ── 0. IITM Online Degree / Angular Material Course Sidebar & Tree ──
+    const iitmItems = Array.from(document.querySelectorAll(
+      'a, [role="listitem"], [role="treeitem"], mat-list-item, .mat-mdc-list-item, div[class*="nav-item"], div[class*="sidebar"] div, div[class*="tree-node"], div[class*="assignment"]'
+    )).filter(el => {
+      if (el.offsetWidth === 0 || el.offsetHeight === 0) return false;
+      const t = (el.innerText || '').toLowerCase();
+      // Must be an assignment (skip videos, tutorials, reading)
+      const isAsgn = t.includes('assignment') || t.includes('quiz') || t.includes('assessment') || t.includes('exam');
+      if (!isAsgn) return false;
+      if (isExcluded(t)) return false;
+      return true;
+    });
+
+    // Check if there are explicitly "Graded" assignments
+    const gradedOnly = iitmItems.filter(el => (el.innerText || '').toLowerCase().includes('graded'));
+    const targetIITM = gradedOnly.length > 0 ? gradedOnly : iitmItems;
+
+    targetIITM.forEach(el => {
+      const title = el.innerText.trim().replace(/\s+/g, ' ');
+      const anchor = el.tagName === 'A' ? el : el.querySelector('a') || el.closest('a');
+      const url = anchor?.href || window.location.href;
+      if (!seen.has(title)) {
+        seen.add(title);
+        links.push({
+          element: el,
+          url: url,
+          title: title,
+          isClickableElement: !anchor?.href || anchor.href === window.location.href || anchor.href.endsWith('#')
+        });
+      }
+    });
+
+    if (links.length > 0) return links;
+
+    // ── 1. Moodle activity links ──
     const moodleActivities = document.querySelectorAll('.activity a.aalink, .activityinstance a, .activity-item a[href*="mod/quiz"], .activity-item a[href*="mod/assign"]');
     moodleActivities.forEach(a => {
       if (a.href && (a.href.includes('mod/quiz') || a.href.includes('mod/assign') || a.href.includes('mod/workshop'))) {
-        links.push({ url: a.href, title: a.innerText?.trim() || 'Assignment' });
+        const title = a.innerText?.trim() || 'Assignment';
+        if (isExcluded(title)) return;
+        if (!seen.has(a.href)) {
+          seen.add(a.href);
+          links.push({ url: a.href, title: title });
+        }
       }
     });
-    // Canvas assignment links
+
+    // ── 2. Canvas assignment links ──
     const canvasActivities = document.querySelectorAll('.assignment a, .ig-title a, .module-item-title a');
     canvasActivities.forEach(a => {
       if (a.href && (a.href.includes('/assignments/') || a.href.includes('/quizzes/'))) {
-        links.push({ url: a.href, title: a.innerText?.trim() || 'Assignment' });
+        const title = a.innerText?.trim() || 'Assignment';
+        if (isExcluded(title)) return;
+        if (!seen.has(a.href)) {
+          seen.add(a.href);
+          links.push({ url: a.href, title: title });
+        }
       }
     });
-    // Google Classroom
+
+    // ── 3. Google Classroom ──
     const classroomLinks = document.querySelectorAll('a[href*="courseWork"], a[href*="coursework"]');
     classroomLinks.forEach(a => {
-      if (a.href) links.push({ url: a.href, title: a.innerText?.trim() || 'Assignment' });
+      if (a.href) {
+        const title = a.innerText?.trim() || 'Assignment';
+        if (isExcluded(title)) return;
+        links.push({ url: a.href, title: title });
+      }
     });
+
+    // Priority filter: If user has items explicitly named "graded", prefer ONLY graded assignments!
+    const strictlyGraded = links.filter(l => l.title.toLowerCase().includes('graded'));
+    if (strictlyGraded.length > 0) {
+      return strictlyGraded;
+    }
+
     return links;
   },
 
@@ -1758,6 +1834,21 @@ window.UniversalSolver = {
         updateStatus?.(`[Batch] Loading assignment ${state.assignmentIndex + 1}/${state.assignmentQueue.length}: ${nextAsgn.title.slice(0, 25)}…`);
         await chrome.storage.local.set({ autopilotBatchState: state });
         await new Promise(r => setTimeout(r, 1200));
+
+        // If on an SPA sidebar (IITM Study)
+        const sidebarTarget = Array.from(document.querySelectorAll('a, [role="listitem"], mat-list-item, div[class*="nav-item"], div[class*="sidebar"] div, div[class*="tree-node"]')).find(el => {
+          const t = el.innerText ? el.innerText.trim().replace(/\s+/g, ' ') : '';
+          return t && (t === nextAsgn.title || t.includes(nextAsgn.title) || nextAsgn.title.includes(t));
+        });
+
+        if (sidebarTarget && (!nextAsgn.url || nextAsgn.url === window.location.href || nextAsgn.isClickableElement)) {
+          sidebarTarget.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          sidebarTarget.click();
+          await new Promise(r => setTimeout(r, 2000));
+          await this.resumePersistentBatch(updateStatus, () => true);
+          return;
+        }
+
         window.location.href = nextAsgn.url;
         return;
       }
