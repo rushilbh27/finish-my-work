@@ -86,6 +86,30 @@
     if (modeStore.agentMode) currentAgentMode = modeStore.agentMode;
   } catch (e) {}
 
+  // ── Auto-Resume Persistent Batch Mode across page reloads (Mode 3 & 4) ──
+  try {
+    const batchStore = await chrome.storage.local.get(['autopilotBatchState']);
+    const batchState = batchStore.autopilotBatchState;
+    if (batchState && batchState.active && isExtensionEnabled) {
+      isAutoPilotRunning = true;
+      btnAutoPilot.classList.add('running');
+      btnAutoPilot.innerHTML = '⏹ &nbsp;Stop Auto-Pilot';
+      const modeLabels = { draft: 'Draft Only', submit: 'Full Submit', course: 'Course Batch', allcourses: 'All Courses' };
+      setStatus(`Auto-pilot [${modeLabels[batchState.mode] || batchState.mode}] resuming…`, true);
+
+      setTimeout(async () => {
+        if (!isAutoPilotRunning || !isExtensionEnabled) return;
+        await window.UniversalSolver.resumePersistentBatch(
+          (msg) => {
+            const isWarn = msg.includes('limit') || msg.includes('waiting') || msg.includes('Error') || msg.includes('warning');
+            setStatus(msg, isAutoPilotRunning, isWarn);
+          },
+          () => isAutoPilotRunning && isExtensionEnabled
+        );
+      }, 1000);
+    }
+  } catch (e) {}
+
   btnClose.addEventListener('click', (e) => {
     e.stopPropagation();
     container.style.display = 'none';
@@ -124,6 +148,9 @@
 
     if (isAutoPilotRunning) {
       isAutoPilotRunning = false;
+      try {
+        await chrome.storage.local.remove(['autopilotBatchState']);
+      } catch (e) {}
       btnAutoPilot.classList.remove('running');
       btnAutoPilot.innerHTML = '▶ &nbsp;Run Auto-Pilot';
       setStatus('Auto-pilot paused.', false);

@@ -517,6 +517,72 @@ window.UniversalSolver = {
     return inView || all[0];
   },
 
+  // Locates the Start / Attempt Quiz button on landing pages (view.php)
+  findStartAttemptButton() {
+    const candidates = Array.from(document.querySelectorAll('button, a, input[type="submit"], input[type="button"], div[role="button"]'));
+    return candidates.find(b => {
+      if (b.offsetWidth === 0 || b.offsetHeight === 0 || b.style.display === 'none') return false;
+      const txt = (b.innerText || b.value || b.getAttribute('aria-label') || '').trim().toLowerCase();
+      const href = (b.href || '').toLowerCase();
+      return (
+        txt.includes('attempt quiz') ||
+        txt.includes('continue the last attempt') ||
+        txt.includes('re-attempt quiz') ||
+        txt.includes('start attempt') ||
+        txt.includes('take the quiz') ||
+        txt.includes('resume quiz') ||
+        txt.includes('begin test') ||
+        txt.includes('start quiz') ||
+        href.includes('/mod/quiz/attempt.php')
+      );
+    });
+  },
+
+  // Color & feature fingerprinting for icons
+  analyzeImageColor(imgEl) {
+    try {
+      if (!imgEl) return null;
+      const canvas = document.createElement('canvas');
+      canvas.width = 16;
+      canvas.height = 16;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(imgEl, 0, 0, 16, 16);
+      const data = ctx.getImageData(0, 0, 16, 16).data;
+      
+      let totalR = 0, totalG = 0, totalB = 0, count = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        const a = data[i + 3];
+        if (a < 50) continue;
+        totalR += data[i];
+        totalG += data[i + 1];
+        totalB += data[i + 2];
+        count++;
+      }
+      if (count === 0) return null;
+      const r = totalR / count;
+      const g = totalG / count;
+      const b = totalB / count;
+
+      // Color classification:
+      // Yellow (Snapchat): R > 160, G > 160, B < 100
+      if (r > 160 && g > 160 && b < 100) return 'yellow';
+      // Sky Blue (Twitter): B > 150, G > 90, R < 120 and B > R * 1.4
+      if (b > 140 && g > 90 && r < 120 && b > r * 1.3) return 'sky-blue';
+      // Navy Blue (LinkedIn): B > 110, R < 70, B > R * 1.8
+      if (b > 100 && r < 75 && b > r * 1.5) return 'navy-blue';
+      // Grey / Monochrome (Instagram camera): R, G, B within 35 of each other and R < 180
+      if (Math.abs(r - g) < 35 && Math.abs(g - b) < 35 && r < 180) return 'grey';
+      // Red: R > 150, G < 90, B < 90
+      if (r > 150 && g < 90 && b < 90) return 'red';
+      // Green: G > 130, R < 110, B < 110
+      if (g > 130 && r < 110 && b < 110) return 'green';
+
+      return 'other';
+    } catch (e) {
+      return null;
+    }
+  },
+
   // Locates the Next / Continue button (NOT submit/finish)
   findNextButton() {
     const candidates = Array.from(document.querySelectorAll('button, a, input[type="button"], input[type="submit"], div[role="button"]'));
@@ -574,13 +640,27 @@ window.UniversalSolver = {
     return completionPhrases.some(phrase => body.includes(phrase));
   },
 
-  // Find Moodle-style confirmation submit button (the second "Submit all and finish" on the confirmation page)
-  findConfirmSubmitButton() {
+  // Find Moodle-style confirmation submit button (the second "Submit all and finish" on the confirmation page / modal)
+  findConfirmSubmitButton(excludeBtn = null) {
+    // 1. Look inside modals/dialogs first (standard Moodle/Bootstrap modal confirmation)
+    const modal = document.querySelector('.modal.show, .modal[style*="display: block"], [role="dialog"], #confirm-modal, .moodle-dialogue-bd');
+    if (modal) {
+      const modalBtn = Array.from(modal.querySelectorAll('button, input[type="submit"], input[type="button"]')).find(b => {
+        if (b === excludeBtn) return false;
+        if (b.offsetWidth === 0 || b.offsetHeight === 0 || b.style.display === 'none') return false;
+        const txt = (b.innerText || b.value || '').trim().toLowerCase();
+        return (txt.includes('submit') || txt.includes('finish') || txt.includes('confirm') || txt.includes('yes')) && !txt.includes('cancel');
+      });
+      if (modalBtn) return modalBtn;
+    }
+
+    // 2. Fallback: Search page excluding the initial submit button
     const candidates = Array.from(document.querySelectorAll('button, input[type="submit"], input[type="button"]'));
     return candidates.find(b => {
+      if (b === excludeBtn) return false;
       if (b.offsetWidth === 0 || b.offsetHeight === 0 || b.style.display === 'none') return false;
       const txt = (b.innerText || b.value || '').trim().toLowerCase();
-      return txt.includes('submit all and finish') || txt.includes('confirm submit');
+      return (txt.includes('submit all and finish') || txt.includes('confirm submit') || txt.includes('confirm'));
     });
   },
 
@@ -674,17 +754,45 @@ window.UniversalSolver = {
         await new Promise(r => setTimeout(r, 1200));
       }
 
-      if (!aiRes || !aiRes.success || !aiRes.mapping) {
-        const err = aiRes?.error || 'AI fill-in-blanks failed';
+      let mapping = aiRes?.mapping;
+      if (!mapping || Object.keys(mapping).length === 0) {
+        mapping = {};
+        const blankMatches = promptText.match(/\[(\d+)\]/g) || [];
+        const segments = promptText.split(/\[\d+\]/);
+
+        words.forEach(w => {
+          const lw = w.toLowerCase();
+          blankMatches.forEach((bm, bIdx) => {
+            const bNum = bm.replace(/[^0-9]/g, '');
+            if (mapping[bNum]) return;
+            const context = (segments[bIdx] || '').toLowerCase();
+            if ((context.includes('140') || context.includes('short message')) && lw.includes('twitter')) mapping[bNum] = w;
+            else if ((context.includes('picture') || context.includes('photo')) && lw.includes('instagram')) mapping[bNum] = w;
+            else if ((context.includes('video') || context.includes('iphone')) && lw.includes('facetime')) mapping[bNum] = w;
+            else if (context.includes('career') && lw.includes('linkedin')) mapping[bNum] = w;
+          });
+        });
+
+        // Default fill any remaining blanks with remaining available words
+        const usedWords = new Set(Object.values(mapping));
+        const unusedWords = words.filter(w => !usedWords.has(w));
+        blankMatches.forEach((bm, bIdx) => {
+          const bNum = bm.replace(/[^0-9]/g, '');
+          if (!mapping[bNum] && unusedWords[bIdx]) {
+            mapping[bNum] = unusedWords[bIdx];
+          }
+        });
+      }
+
+      if (!mapping || Object.keys(mapping).length === 0) {
         return {
           success: false,
           rateLimited: !!aiRes?.rateLimited,
           waitSec: aiRes?.waitSec || 30,
-          message: err
+          message: aiRes?.error || 'Could not resolve blanks'
         };
       }
 
-      const mapping = aiRes.mapping; // e.g. {"1": "Twitter", "2": "Instagram", "3": "Facetime"}
       let placedCount = 0;
 
       for (const [blankNum, chosenWord] of Object.entries(mapping)) {
@@ -745,79 +853,138 @@ window.UniversalSolver = {
     // ── 2. Matching / Dropdowns (Moodle match, gapselect, Canvas/Blackboard matching) ──
     if (q.type === 'matching' && q.dropdowns && q.dropdowns.length > 0) {
       updateStatus?.(`Solving ${q.dropdowns.length} dropdown matches...`);
+
+      // 1:1 Image Mapping Fallback (if individual rows didn't encapsulate the img tag)
+      const qImages = Array.from(q.container.querySelectorAll('.qtext img, .formulation img, table.answer img')).filter(img => 
+        !img.src.includes('unflagged') && !img.src.includes('pix/help') && !img.src.includes('theme/image.php/boost/core')
+      );
+      if (qImages.length === q.dropdowns.length) {
+        q.dropdowns.forEach((d, idx) => {
+          if (!d.image) d.image = qImages[idx];
+        });
+      }
+
+      const allAvailableOpts = q.dropdowns[0]?.options || [];
+      const assignedOptionValues = new Set();
+      const matches = new Array(q.dropdowns.length).fill(null);
+
+      // STEP 1: Direct text & metadata heuristics (filename, alt, title, prompt)
+      for (let i = 0; i < q.dropdowns.length; i++) {
+        const d = q.dropdowns[i];
+        const imgSrc = (d.image?.src || '').toLowerCase();
+        const imgAlt = (d.image?.alt || '').toLowerCase();
+        const imgTitle = (d.image?.title || '').toLowerCase();
+        const prompt = (d.prompt || '').toLowerCase();
+
+        for (const opt of d.options) {
+          const optText = opt.text.toLowerCase().trim();
+          if (optText.length < 2) continue;
+          if (assignedOptionValues.has(opt.value)) continue;
+
+          if (imgAlt.includes(optText) || imgTitle.includes(optText) || imgSrc.includes(optText) ||
+              (prompt.length > 2 && prompt.includes(optText))) {
+            matches[i] = opt;
+            assignedOptionValues.add(opt.value);
+            break;
+          }
+        }
+      }
+
+      // STEP 2: Visual Brand / Color Fingerprinting for unmatched icons
+      for (let i = 0; i < q.dropdowns.length; i++) {
+        if (matches[i] || !q.dropdowns[i].image) continue;
+        const color = this.analyzeImageColor(q.dropdowns[i].image);
+
+        let targetKeywords = [];
+        if (color === 'yellow') targetKeywords = ['snapchat'];
+        else if (color === 'sky-blue') targetKeywords = ['twitter', 'bluesky'];
+        else if (color === 'navy-blue') targetKeywords = ['linkedin'];
+        else if (color === 'grey') targetKeywords = ['instagram'];
+        else if (color === 'red') targetKeywords = ['youtube', 'pinterest'];
+
+        for (const kw of targetKeywords) {
+          const opt = q.dropdowns[i].options.find(o => 
+            !assignedOptionValues.has(o.value) && o.text.toLowerCase().includes(kw)
+          );
+          if (opt) {
+            matches[i] = opt;
+            assignedOptionValues.add(opt.value);
+            break;
+          }
+        }
+      }
+
+      // STEP 3: Deductive Elimination (assign remaining unique options)
+      const remainingUnassignedIndices = [];
+      matches.forEach((m, idx) => {
+        if (!m) remainingUnassignedIndices.push(idx);
+      });
+
+      const remainingOptions = allAvailableOpts.filter(o => !assignedOptionValues.has(o.value));
+
+      if (remainingUnassignedIndices.length === 1 && remainingOptions.length >= 1) {
+        const idx = remainingUnassignedIndices[0];
+        matches[idx] = remainingOptions[0];
+        assignedOptionValues.add(remainingOptions[0].value);
+      } else if (remainingUnassignedIndices.length > 1 && remainingOptions.length === remainingUnassignedIndices.length) {
+        remainingUnassignedIndices.forEach((idx, rIdx) => {
+          matches[idx] = remainingOptions[rIdx];
+          assignedOptionValues.add(remainingOptions[rIdx].value);
+        });
+      }
+
+      // STEP 4: AI Fallback for any still-unmatched items (single batch call)
+      const stillUnmatched = matches.map((m, idx) => m ? null : idx).filter(idx => idx !== null);
+      if (stillUnmatched.length > 0) {
+        const unassignedOpts = allAvailableOpts.filter(o => !assignedOptionValues.has(o.value));
+        if (unassignedOpts.length > 0) {
+          const itemsDesc = stillUnmatched.map((idx, num) => {
+            const d = q.dropdowns[idx];
+            return `${num + 1}. Item ${idx + 1}: ${d.prompt || 'Icon / prompt'}`;
+          }).join('\n');
+          const choicesDesc = unassignedOpts.map(o => o.text).join(', ');
+
+          const batchPrompt = `Match each item to the correct choice:\n${itemsDesc}\n\nAvailable choices: ${choicesDesc}\n\nRespond with a valid JSON object mapping item numbers ("1", "2") to the exact choice text, e.g. {"1": "ChoiceA", "2": "ChoiceB"}.`;
+          const aiRes = await window.AIEngine.generateAnswer(batchPrompt, null, 'You are an academic exam solver. Output ONLY valid JSON.');
+
+          if (aiRes?.success && aiRes.text) {
+            try {
+              const clean = aiRes.text.replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
+              const jsonMatch = clean.match(/\{[\s\S]*\}/);
+              if (jsonMatch) {
+                const map = JSON.parse(jsonMatch[0]);
+                stillUnmatched.forEach((rowIdx, num) => {
+                  const key = (num + 1).toString();
+                  const chosenText = map[key];
+                  if (chosenText) {
+                    const foundOpt = unassignedOpts.find(o => 
+                      !assignedOptionValues.has(o.value) && 
+                      (o.text.toLowerCase().includes(chosenText.toLowerCase()) || chosenText.toLowerCase().includes(o.text.toLowerCase()))
+                    );
+                    if (foundOpt) {
+                      matches[rowIdx] = foundOpt;
+                      assignedOptionValues.add(foundOpt.value);
+                    }
+                  }
+                });
+              }
+            } catch (e) {}
+          }
+        }
+      }
+
+      // STEP 5: Apply all matches to DOM select elements
       let solvedCount = 0;
+      for (let i = 0; i < q.dropdowns.length; i++) {
+        const d = q.dropdowns[i];
+        const chosen = matches[i] || d.options.find(o => !assignedOptionValues.has(o.value)) || d.options[0];
 
-      for (let di = 0; di < q.dropdowns.length; di++) {
-        const d = q.dropdowns[di];
-        if (d.isAnswered) {
-          solvedCount++;
-          continue;
-        }
-
-        // Direct heuristic 1: image filename / alt text matching option text
-        let matchedOpt = null;
-        if (d.image) {
-          const imgSrc = (d.image.src || '').toLowerCase();
-          const imgAlt = (d.image.alt || '').toLowerCase();
-          const imgTitle = (d.image.title || '').toLowerCase();
-
-          matchedOpt = d.options.find(opt => {
-            const cleanOpt = opt.text.trim().toLowerCase();
-            if (cleanOpt.length < 2) return false;
-            return imgAlt.includes(cleanOpt) || 
-                   imgTitle.includes(cleanOpt) || 
-                   imgSrc.includes(cleanOpt.replace(/\s+/g, '')) ||
-                   imgSrc.includes(cleanOpt.replace(/\s+/g, '_')) ||
-                   imgSrc.includes(cleanOpt.replace(/\s+/g, '-'));
-          });
-        }
-
-        // Direct heuristic 2: prompt text matching option text
-        if (!matchedOpt && d.prompt) {
-          const cleanPrompt = d.prompt.toLowerCase();
-          matchedOpt = d.options.find(opt => {
-            const cleanOpt = opt.text.trim().toLowerCase();
-            return cleanPrompt.length > 2 && (cleanPrompt.includes(cleanOpt) || cleanOpt.includes(cleanPrompt));
-          });
-        }
-
-        // AI Engine resolution
-        if (!matchedOpt) {
-          let aiRes = null;
-          if (d.image) {
-            updateStatus?.(`AI matching item ${di + 1} with image...`);
-            aiRes = await window.AIEngine.solveMCQ(`Match this icon/image to its correct site. Overall question: "${q.text}"`, d.options, d.image);
-          } else {
-            updateStatus?.(`AI matching item ${di + 1}: "${d.prompt.slice(0, 25)}"...`);
-            aiRes = await window.AIEngine.solveMCQ(`Match the correct answer for: "${d.prompt}". Overall context: "${q.text}"`, d.options);
-          }
-
-          if (aiRes?.rateLimited) {
-            return {
-              success: false,
-              rateLimited: true,
-              waitSec: aiRes.waitSec || 30,
-              message: aiRes.error || 'Rate limited'
-            };
-          }
-
-          if (aiRes?.success && aiRes.letter) {
-            const idx = aiRes.letter.charCodeAt(0) - 65;
-            if (d.options[idx]) matchedOpt = d.options[idx];
-            if (!matchedOpt) {
-              matchedOpt = d.options.find(o => o.letter?.toUpperCase() === aiRes.letter);
-            }
-          }
-        }
-
-        if (!matchedOpt && d.options.length > 0) {
-          matchedOpt = d.options[0];
-        }
-
-        if (matchedOpt) {
+        if (chosen) {
           d.select.focus();
-          d.select.value = matchedOpt.value;
-          if (matchedOpt.element) matchedOpt.element.selected = true;
+          d.select.value = chosen.value;
+          d.select.selectedIndex = chosen.index || 1;
+          if (chosen.element) chosen.element.selected = true;
+
           d.select.dispatchEvent(new Event('input', { bubbles: true }));
           d.select.dispatchEvent(new Event('change', { bubbles: true }));
 
@@ -825,7 +992,7 @@ window.UniversalSolver = {
           d.select.style.boxShadow = '0 0 8px rgba(16, 185, 129, 0.4)';
           d.isAnswered = true;
           solvedCount++;
-          await new Promise(r => setTimeout(r, 300));
+          await new Promise(r => setTimeout(r, 200));
         }
       }
 
@@ -1165,7 +1332,7 @@ window.UniversalSolver = {
           await new Promise(r => setTimeout(r, 3000));
 
           // Check for confirmation dialog (Moodle asks twice)
-          const confirmBtn = this.findConfirmSubmitButton();
+          const confirmBtn = this.findConfirmSubmitButton(submitBtn);
           if (confirmBtn) {
             updateStatus?.('[Submit] Confirming final submission…');
             await new Promise(r => setTimeout(r, 500));
@@ -1209,7 +1376,7 @@ window.UniversalSolver = {
         await new Promise(r => setTimeout(r, 3000));
 
         // Moodle double-confirm pattern
-        const confirmBtn = this.findConfirmSubmitButton();
+        const confirmBtn = this.findConfirmSubmitButton(submitBtn);
         if (confirmBtn) {
           updateStatus?.('[Submit] Confirming final submission…');
           await new Promise(r => setTimeout(r, 500));
@@ -1231,71 +1398,187 @@ window.UniversalSolver = {
   },
 
   // ══════════════════════════════════════════════════════════════
-  //  MODE: COURSE BATCH — Loop through all assignments in course
+  //  PERSISTENT BATCH STATE MACHINE (Mode 3 & Mode 4)
+  //  Survives full browser page navigations and reloads seamlessly
   // ══════════════════════════════════════════════════════════════
-  async _runCourseBatchMode(updateStatus, isRunningCallback) {
-    const assignments = this.findAssignmentLinks();
-    if (assignments.length === 0) {
-      // Maybe we're already on a quiz page — just do Submit mode
-      updateStatus?.('[Course] No assignment list found. Running Submit mode on current page…');
-      await this._runSubmitMode(updateStatus, isRunningCallback);
-      return;
+
+  // Advance to next assignment in batch queue
+  async advanceBatchAssignment(updateStatus) {
+    try {
+      const data = await chrome.storage.local.get(['autopilotBatchState']);
+      const state = data.autopilotBatchState;
+      if (!state || !state.active) return;
+
+      state.assignmentIndex = (state.assignmentIndex || 0) + 1;
+
+      if (state.assignmentQueue && state.assignmentIndex < state.assignmentQueue.length) {
+        const nextAsgn = state.assignmentQueue[state.assignmentIndex];
+        updateStatus?.(`[Batch] Loading assignment ${state.assignmentIndex + 1}/${state.assignmentQueue.length}: ${nextAsgn.title.slice(0, 25)}…`);
+        await chrome.storage.local.set({ autopilotBatchState: state });
+        await new Promise(r => setTimeout(r, 1200));
+        window.location.href = nextAsgn.url;
+        return;
+      }
+
+      // Course assignments finished!
+      if (state.mode === 'allcourses' && state.courseQueue) {
+        state.courseIndex = (state.courseIndex || 0) + 1;
+        if (state.courseIndex < state.courseQueue.length) {
+          const nextCourse = state.courseQueue[state.courseIndex];
+          state.assignmentQueue = [];
+          state.assignmentIndex = 0;
+          updateStatus?.(`[All Courses] Course finished! Moving to course ${state.courseIndex + 1}/${state.courseQueue.length}: ${nextCourse.title.slice(0, 25)}…`);
+          await chrome.storage.local.set({ autopilotBatchState: state });
+          await new Promise(r => setTimeout(r, 1500));
+          window.location.href = nextCourse.url;
+          return;
+        }
+      }
+
+      // All done!
+      await chrome.storage.local.remove(['autopilotBatchState']);
+      updateStatus?.('🎉 All assignments and courses batch complete!');
+    } catch (e) {
+      console.warn('[Autopilot AI] advanceBatchAssignment error:', e);
     }
-
-    updateStatus?.(`[Course] Found ${assignments.length} assignments. Starting batch…`);
-
-    for (let i = 0; i < assignments.length; i++) {
-      if (!isRunningCallback()) return;
-      const asgn = assignments[i];
-      updateStatus?.(`[Course] Assignment ${i + 1}/${assignments.length}: ${asgn.title.slice(0, 30)}…`);
-
-      // Navigate to the assignment
-      window.location.href = asgn.url;
-
-      // Wait for page load
-      await new Promise(r => setTimeout(r, 4000));
-
-      // Run submit mode on this assignment
-      await this._runSubmitMode(updateStatus, isRunningCallback);
-      if (!isRunningCallback()) return;
-
-      await new Promise(r => setTimeout(r, 2000));
-    }
-
-    updateStatus?.(`✅ Course batch complete! ${assignments.length} assignments processed. 🎉`);
   },
 
-  // ══════════════════════════════════════════════════════════════
-  //  MODE: ALL COURSES — Loop through every course + assignments
-  // ══════════════════════════════════════════════════════════════
-  async _runAllCoursesMode(updateStatus, isRunningCallback) {
-    const courses = this.findCourseLinks();
-    if (courses.length === 0) {
-      // Maybe we're already on a course page
-      updateStatus?.('[All Courses] No course list found. Trying Course Batch on current page…');
-      await this._runCourseBatchMode(updateStatus, isRunningCallback);
-      return;
+  // Called on every page load to resume persistent batch execution
+  async resumePersistentBatch(updateStatus, isRunningCallback) {
+    try {
+      const data = await chrome.storage.local.get(['autopilotBatchState']);
+      const state = data.autopilotBatchState;
+      if (!state || !state.active || !isRunningCallback()) return;
+
+      const modeTag = state.mode === 'allcourses' ? '[All Courses]' : '[Course Batch]';
+
+      // ── Page State 1: Active Quiz Attempt (questions on page) ──
+      const questions = this.detectAllQuestions();
+      if (questions.length > 0) {
+        updateStatus?.(`${modeTag} Solving questions on attempt page…`);
+        await this._runSubmitMode(updateStatus, isRunningCallback);
+
+        // After submit mode finishes or submits:
+        if (this.isQuizComplete()) {
+          if (state.mode === 'submit') {
+            updateStatus?.('🎉 Quiz completed and submitted!');
+            await chrome.storage.local.remove(['autopilotBatchState']);
+            return;
+          }
+          updateStatus?.(`${modeTag} Quiz submitted! Advancing to next…`);
+          await new Promise(r => setTimeout(r, 1500));
+          await this.advanceBatchAssignment(updateStatus);
+        }
+        return;
+      }
+
+      // ── Page State 2: Quiz Landing Page (view.php with Start/Attempt button) ──
+      const startBtn = this.findStartAttemptButton();
+      if (startBtn) {
+        updateStatus?.(`${modeTag} Starting quiz attempt…`);
+        await new Promise(r => setTimeout(r, 800));
+        startBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        await new Promise(r => setTimeout(r, 400));
+        startBtn.click();
+        return;
+      }
+
+      // ── Page State 3: Quiz Summary Page (summary.php with Submit button) ──
+      const submitBtn = this.findSubmitButton() || this.findConfirmSubmitButton();
+      if (submitBtn) {
+        updateStatus?.(`${modeTag} Submitting quiz from summary…`);
+        submitBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        await new Promise(r => setTimeout(r, 600));
+        submitBtn.click();
+        await new Promise(r => setTimeout(r, 1000));
+
+        const confirmBtn = this.findConfirmSubmitButton(submitBtn);
+        if (confirmBtn) {
+          updateStatus?.(`${modeTag} Confirming final submission in modal…`);
+          confirmBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          await new Promise(r => setTimeout(r, 400));
+          confirmBtn.click();
+          await new Promise(r => setTimeout(r, 2000));
+        }
+
+        // If page completed via AJAX without full navigation
+        if (this.isQuizComplete()) {
+          if (state.mode === 'submit') {
+            updateStatus?.('🎉 Quiz completed and submitted!');
+            await chrome.storage.local.remove(['autopilotBatchState']);
+            return;
+          }
+          await this.advanceBatchAssignment(updateStatus);
+        }
+        return;
+      }
+
+      // ── Page State 4: Quiz Review or Already Submitted Page ──
+      if (this.isQuizComplete() || window.location.href.includes('/mod/quiz/review.php')) {
+        if (state.mode === 'submit') {
+          updateStatus?.('🎉 Quiz completed and submitted!');
+          await chrome.storage.local.remove(['autopilotBatchState']);
+          return;
+        }
+        updateStatus?.(`${modeTag} Quiz completed! Advancing to next assignment…`);
+        await new Promise(r => setTimeout(r, 1200));
+        await this.advanceBatchAssignment(updateStatus);
+        return;
+      }
+
+      // ── Page State 5: Course Page (course/view.php with assignment links) ──
+      const assignments = this.findAssignmentLinks();
+      if (assignments.length > 0) {
+        if (!state.assignmentQueue || state.assignmentQueue.length === 0) {
+          state.assignmentQueue = assignments;
+          state.assignmentIndex = 0;
+        }
+        const idx = state.assignmentIndex || 0;
+        if (idx < state.assignmentQueue.length) {
+          const nextAsgn = state.assignmentQueue[idx];
+          updateStatus?.(`${modeTag} Starting assignment ${idx + 1}/${state.assignmentQueue.length}: ${nextAsgn.title.slice(0, 25)}…`);
+          await chrome.storage.local.set({ autopilotBatchState: state });
+          await new Promise(r => setTimeout(r, 1000));
+          window.location.href = nextAsgn.url;
+          return;
+        } else {
+          // All assignments in course completed
+          updateStatus?.(`${modeTag} All assignments in course completed!`);
+          await this.advanceBatchAssignment(updateStatus);
+          return;
+        }
+      }
+
+      // ── Page State 6: Dashboard with Courses (for All Courses mode) ──
+      if (state.mode === 'allcourses') {
+        const courses = this.findCourseLinks();
+        if (courses.length > 0) {
+          if (!state.courseQueue || state.courseQueue.length === 0) {
+            state.courseQueue = courses;
+            state.courseIndex = 0;
+          }
+          const cIdx = state.courseIndex || 0;
+          if (cIdx < state.courseQueue.length) {
+            const nextCourse = state.courseQueue[cIdx];
+            updateStatus?.(`[All Courses] Opening course ${cIdx + 1}/${state.courseQueue.length}: ${nextCourse.title.slice(0, 25)}…`);
+            await chrome.storage.local.set({ autopilotBatchState: state });
+            await new Promise(r => setTimeout(r, 1000));
+            window.location.href = nextCourse.url;
+            return;
+          } else {
+            await chrome.storage.local.remove(['autopilotBatchState']);
+            updateStatus?.('🎉 All courses and assignments completed!');
+            return;
+          }
+        }
+      }
+
+      // Fallback: If no recognized structure, try advancing
+      updateStatus?.(`${modeTag} Page has no pending tasks. Checking next assignment…`);
+      await this.advanceBatchAssignment(updateStatus);
+    } catch (e) {
+      console.warn('[Autopilot AI] resumePersistentBatch error:', e);
     }
-
-    updateStatus?.(`[All Courses] Found ${courses.length} courses. Starting full sweep…`);
-
-    for (let i = 0; i < courses.length; i++) {
-      if (!isRunningCallback()) return;
-      const course = courses[i];
-      updateStatus?.(`[All Courses] Course ${i + 1}/${courses.length}: ${course.title.slice(0, 30)}…`);
-
-      // Navigate to course
-      window.location.href = course.url;
-      await new Promise(r => setTimeout(r, 4000));
-
-      // Run course batch on this course
-      await this._runCourseBatchMode(updateStatus, isRunningCallback);
-      if (!isRunningCallback()) return;
-
-      await new Promise(r => setTimeout(r, 2000));
-    }
-
-    updateStatus?.(`✅ All courses complete! ${courses.length} courses processed. 🎉`);
   },
 
   // ══════════════════════════════════════════════════════════════
@@ -1304,22 +1587,73 @@ window.UniversalSolver = {
   async startAutoPilot(updateStatus, isRunningCallback, mode = 'draft') {
     console.log(`[Autopilot AI] Starting in mode: ${mode}`);
 
-    switch (mode) {
-      case 'draft':
-        await this._runDraftMode(updateStatus, isRunningCallback);
-        break;
-      case 'submit':
-        await this._runSubmitMode(updateStatus, isRunningCallback);
-        break;
-      case 'course':
-        await this._runCourseBatchMode(updateStatus, isRunningCallback);
-        break;
-      case 'allcourses':
-        await this._runAllCoursesMode(updateStatus, isRunningCallback);
-        break;
-      default:
-        updateStatus?.(`Unknown mode: ${mode}. Running Draft mode.`);
-        await this._runDraftMode(updateStatus, isRunningCallback);
+    // Mode 1: Draft Only (never submit or navigate)
+    if (mode === 'draft') {
+      await chrome.storage.local.remove(['autopilotBatchState']);
+      await this._runDraftMode(updateStatus, isRunningCallback);
+      return;
     }
+
+    // Mode 2: Full Submit (current quiz attempt)
+    if (mode === 'submit') {
+      const state = {
+        active: true,
+        mode: 'submit'
+      };
+      await chrome.storage.local.set({ autopilotBatchState: state });
+      await this._runSubmitMode(updateStatus, isRunningCallback);
+      return;
+    }
+
+    // Mode 3: Course Batch (all assignments in current course)
+    if (mode === 'course') {
+      const assignments = this.findAssignmentLinks();
+      const state = {
+        active: true,
+        mode: 'course',
+        assignmentQueue: assignments,
+        assignmentIndex: 0
+      };
+      await chrome.storage.local.set({ autopilotBatchState: state });
+
+      if (assignments.length > 0) {
+        updateStatus?.(`[Course] Found ${assignments.length} assignments. Starting #1: ${assignments[0].title.slice(0, 25)}…`);
+        await new Promise(r => setTimeout(r, 1000));
+        window.location.href = assignments[0].url;
+        return;
+      }
+
+      // If already on a quiz/attempt page within the course:
+      await this.resumePersistentBatch(updateStatus, isRunningCallback);
+      return;
+    }
+
+    // Mode 4: All Courses (all courses across platform)
+    if (mode === 'allcourses') {
+      const courses = this.findCourseLinks();
+      const state = {
+        active: true,
+        mode: 'allcourses',
+        courseQueue: courses,
+        courseIndex: 0,
+        assignmentQueue: [],
+        assignmentIndex: 0
+      };
+      await chrome.storage.local.set({ autopilotBatchState: state });
+
+      if (courses.length > 0) {
+        updateStatus?.(`[All Courses] Found ${courses.length} courses. Opening course #1: ${courses[0].title.slice(0, 25)}…`);
+        await new Promise(r => setTimeout(r, 1000));
+        window.location.href = courses[0].url;
+        return;
+      }
+
+      // If already in a course or quiz:
+      await this.resumePersistentBatch(updateStatus, isRunningCallback);
+      return;
+    }
+
+    // Fallback default
+    await this._runDraftMode(updateStatus, isRunningCallback);
   }
 };
