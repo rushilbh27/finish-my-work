@@ -33,7 +33,7 @@ Built with a sleek neo-brutalist technical interface, multi-engine AI intelligen
 </p>
 
 <p align="center">
-  <img src="assets/agent-modes.png" alt="4 Agent Autopilot Modes" width="70%" />
+  <img src="assets/agent-modes.png" alt="4 Agent Autopilot Modes" width="94%" />
   <br />
   <em>Agent Mode Selector: Full descriptive context in the menu, clean compact labels when selected.</em>
 </p>

@@ -1,13 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Finish My Work</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet">
   <link rel="stylesheet" href="popup.css">
 </head>
+
 <body>
   <div class="app-container">
 
@@ -19,9 +23,12 @@
       </div>
       <div class="header-ctrls">
         <button class="btn-gear" id="btn-toggle-settings" title="Settings / Configuration">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+            stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="3"></circle>
-            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+            <path
+              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+            </path>
           </svg>
         </button>
         <label class="power-switch" title="Turn extension ON/OFF">
@@ -58,10 +65,10 @@
         <div class="mode-dropdown-wrapper">
           <span class="mode-display-val" id="mode-display-val">Draft Only</span>
           <select class="mode-dropdown" id="agent-mode-select" title="Agent Mode">
-            <option value="draft">Draft Only — Solve, don't submit</option>
-            <option value="submit">Full Submit — Solve + submit quiz</option>
-            <option value="course">Course Batch — All assignments in course</option>
-            <option value="allcourses">All Courses — Every assignment everywhere</option>
+            <option value="draft">Draft Only: Solve, don't submit</option>
+            <option value="submit">Full Submit: Solve + submit quiz</option>
+            <option value="course">Course Batch: All assignments in course</option>
+            <option value="allcourses">All Courses: Every assignment everywhere</option>
           </select>
         </div>
       </div>
@@ -101,14 +108,14 @@
         <button class="tech-tab-btn" data-provider="groq">⚡ Groq</button>
         <button class="tech-tab-btn" data-provider="gemini">🔑 Gemini</button>
         <button class="tech-tab-btn" data-provider="openrouter">🌐 OpenRouter</button>
-        <button class="tech-tab-btn" data-provider="about">ℹ About</button>
       </div>
 
       <!-- 1. Free tab content -->
       <div class="provider-card" id="card-free">
         <div class="callout-amber">
           <div class="callout-tag text-amber">// BUILT-IN FREE ENGINE</div>
-          <p class="callout-desc">Zero keys needed. Automatically waits out the 30s rate-limit cooldown so no question is ever skipped.</p>
+          <p class="callout-desc">Zero keys needed. Automatically waits out the 30s rate-limit cooldown so no question
+            is ever skipped.</p>
         </div>
       </div>
 
@@ -116,14 +123,17 @@
       <div class="provider-card hidden" id="card-groq">
         <div class="callout-blue">
           <div class="callout-tag text-blue">// GROQ CLOUD (30 REQ/MIN · 0s WAIT)</div>
-          <p class="callout-desc">Fastest free option. Sign in with Google at console.groq.com (no credit card needed).</p>
+          <p class="callout-desc">Fastest free option. Sign in with Google at console.groq.com (no credit card needed).
+          </p>
           <div class="input-wrap">
-            <input type="password" id="groq-key" class="tech-input" placeholder="Paste gsk_... key" autocomplete="off" />
+            <input type="password" id="groq-key" class="tech-input" placeholder="Paste gsk_... key"
+              autocomplete="off" />
             <button class="reveal-btn" data-target="groq-key">👁</button>
           </div>
           <div class="card-error hidden" id="groq-error"></div>
           <div class="link-row">
-            <a href="https://console.groq.com/keys" target="_blank" class="callout-link">Get Free Key at console.groq.com →</a>
+            <a href="https://console.groq.com/keys" target="_blank" class="callout-link">Get Free Key at
+              console.groq.com →</a>
           </div>
         </div>
       </div>
@@ -134,12 +144,14 @@
           <div class="callout-tag text-blue">// GOOGLE GEMINI (VISION AI)</div>
           <p class="callout-desc">Supports test diagrams, circuit schematics, charts, and geometry.</p>
           <div class="input-wrap">
-            <input type="password" id="gemini-key" class="tech-input" placeholder="Paste Gemini API key" autocomplete="off" />
+            <input type="password" id="gemini-key" class="tech-input" placeholder="Paste Gemini API key"
+              autocomplete="off" />
             <button class="reveal-btn" data-target="gemini-key">👁</button>
           </div>
           <div class="card-error hidden" id="gemini-error"></div>
           <div class="link-row">
-            <a href="https://aistudio.google.com/app/apikey" target="_blank" class="callout-link">Get Key at aistudio.google.com →</a>
+            <a href="https://aistudio.google.com/app/apikey" target="_blank" class="callout-link">Get Key at
+              aistudio.google.com →</a>
           </div>
         </div>
       </div>
@@ -150,45 +162,14 @@
           <div class="callout-tag text-blue">// OPENROUTER (FREE MODELS)</div>
           <p class="callout-desc">Access Llama 3.3 and DeepSeek R1 free models.</p>
           <div class="input-wrap">
-            <input type="password" id="openrouter-key" class="tech-input" placeholder="Paste sk-or-... key" autocomplete="off" />
+            <input type="password" id="openrouter-key" class="tech-input" placeholder="Paste sk-or-... key"
+              autocomplete="off" />
             <button class="reveal-btn" data-target="openrouter-key">👁</button>
           </div>
           <div class="card-error hidden" id="openrouter-error"></div>
           <div class="link-row">
-            <a href="https://openrouter.ai/keys" target="_blank" class="callout-link">Get Key at openrouter.ai/keys →</a>
-          </div>
-        </div>
-      </div>
-
-      <!-- 5. About tab content -->
-      <div class="provider-card hidden" id="card-about">
-        <div class="callout-about">
-          <div class="about-hero">
-            <span class="about-title">⚡ FINISH MY WORK</span>
-            <span class="about-pill">v2.4.0</span>
-          </div>
-          <p class="about-desc">
-            Universal autonomous assignment, quiz, & coursework solver for Chrome. Built for students to eliminate repetitive LMS busywork.
-          </p>
-          <div class="about-grid">
-            <div class="about-stat">
-              <span class="about-stat-label">MODES</span>
-              <span class="about-stat-val">4 Agent Modes</span>
-            </div>
-            <div class="about-stat">
-              <span class="about-stat-label">ENGINES</span>
-              <span class="about-stat-val">Groq · Gemini · Free</span>
-            </div>
-            <div class="about-stat">
-              <span class="about-stat-label">PRIVACY</span>
-              <span class="about-stat-val">100% Local / Safe</span>
-            </div>
-          </div>
-          <div class="about-footer-row">
-            <span class="about-author">Created by <strong>Rushil Bhor</strong></span>
-            <a href="https://github.com/rushilbh27/finish-my-work" target="_blank" class="btn-github-pill">
-              ★ Star on GitHub ↗
-            </a>
+            <a href="https://openrouter.ai/keys" target="_blank" class="callout-link">Get Key at openrouter.ai/keys
+              →</a>
           </div>
         </div>
       </div>
@@ -213,4 +194,5 @@
 
   <script src="popup.js"></script>
 </body>
+
 </html>
