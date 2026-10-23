@@ -1752,18 +1752,40 @@ window.UniversalSolver = {
             await new Promise(r => setTimeout(r, 1000));
             waitTime--;
           }
-        } else {
-          // If unsupported question format or failure after 2 attempts, skip to avoid wasting tokens
-          if (res.message && (res.message.includes('Unsupported') || res.message.includes('Could not match') || attempts >= 2)) {
-            updateStatus?.(`⚠️ Q${i + 1}: ${res.message || 'Skipped'}. Advancing…`);
-            q.isAnswered = true;
-            q.skipped = true;
-            await new Promise(r => setTimeout(r, 1000));
-            break;
-          }
-          updateStatus?.(`Retrying Q${i + 1}... (${(res.message || 'error').slice(0, 30)})`);
-          await new Promise(r => setTimeout(r, 1200));
+          continue;
         }
+
+        // Check if error is an AI provider / network failure
+        const isApiFailure = res.message && (
+          res.message.includes('Groq error') ||
+          res.message.includes('HTTP 404') ||
+          res.message.includes('HTTP 401') ||
+          res.message.includes('Invalid API Key') ||
+          res.message.includes('All AI engines unavailable') ||
+          res.message.includes('key missing') ||
+          res.message.includes('Failed to fetch')
+        );
+
+        if (isApiFailure) {
+          // NEVER skip questions on API failure! Pause cleanly so student never loses marks.
+          updateStatus?.(`⚠️ Auto-Pilot paused: ${res.message.slice(0, 48)}`);
+          return { questionsFound: true, allAnswered: false, stopped: true, error: res.message };
+        }
+
+        if (res.message && (res.message.includes('Unsupported') || res.message.includes('Could not match'))) {
+          updateStatus?.(`⚠️ Q${i + 1}: ${res.message}. Skipping to next…`);
+          q.isAnswered = true;
+          q.skipped = true;
+          break;
+        }
+
+        if (attempts >= 2) {
+          updateStatus?.(`⚠️ Q${i + 1} unresolved. Auto-Pilot paused.`);
+          return { questionsFound: true, allAnswered: false, stopped: true };
+        }
+
+        updateStatus?.(`Retrying Q${i + 1}... (${(res.message || 'error').slice(0, 30)})`);
+        await new Promise(r => setTimeout(r, 1200));
       }
 
       if (!isRunningCallback()) return { questionsFound: true, allAnswered: false, stopped: true };
@@ -1817,7 +1839,8 @@ window.UniversalSolver = {
       } else {
         consecutiveEmptyCount = 0;
         if (!result.allAnswered) {
-          updateStatus?.(`⚠️ ${result.unansweredCount} question(s) pending on ${label}.`);
+          updateStatus?.(`⚠️ Question unresolved on ${label}. Auto-Pilot paused.`);
+          return;
         }
       }
 
@@ -1937,6 +1960,10 @@ window.UniversalSolver = {
         }
       } else {
         consecutiveEmptyCount = 0;
+        if (!result.allAnswered) {
+          updateStatus?.(`⚠️ Question unresolved on ${label}. Auto-Pilot paused.`);
+          return;
+        }
       }
 
       // If not on final question, advance

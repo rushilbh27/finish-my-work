@@ -242,37 +242,53 @@
     btnSolveOnce.disabled = false;
   });
 
-  // ── Drag & Drop ──
+  // ── Drag & Drop (Freely draggable across screen with PointerEvents) ──
   const dragHandle = document.getElementById('peslms-drag-handle');
   let isDragging = false;
-  let startX, startY, origX, origY;
+  let startX = 0, startY = 0, origX = 0, origY = 0;
 
-  dragHandle.addEventListener('mousedown', (e) => {
-    if (e.target.closest('button')) return;
-    isDragging = true;
-    startX = e.clientX;
-    startY = e.clientY;
-    const rect = container.getBoundingClientRect();
-    origX = rect.left;
-    origY = rect.top;
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
-  });
+  if (dragHandle) {
+    dragHandle.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('button')) return;
+      isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      const rect = container.getBoundingClientRect();
+      origX = rect.left;
+      origY = rect.top;
 
-  function onMouseMove(e) {
-    if (!isDragging) return;
-    const dx = e.clientX - startX;
-    const dy = e.clientY - startY;
-    container.style.right = 'auto';
-    container.style.bottom = 'auto';
-    container.style.left = `${Math.max(10, Math.min(window.innerWidth - 260, origX + dx))}px`;
-    container.style.top = `${Math.max(10, Math.min(window.innerHeight - 180, origY + dy))}px`;
-  }
+      try {
+        dragHandle.setPointerCapture(e.pointerId);
+      } catch (err) {}
 
-  function onMouseUp() {
-    isDragging = false;
-    document.removeEventListener('mousemove', onMouseMove);
-    document.removeEventListener('mouseup', onMouseUp);
+      dragHandle.addEventListener('pointermove', onPointerMove);
+      dragHandle.addEventListener('pointerup', onPointerUp);
+      dragHandle.addEventListener('pointercancel', onPointerUp);
+      e.preventDefault();
+    });
+
+    function onPointerMove(e) {
+      if (!isDragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      const newLeft = Math.max(10, Math.min(window.innerWidth - 280, origX + dx));
+      const newTop = Math.max(10, Math.min(window.innerHeight - 150, origY + dy));
+      container.style.setProperty('right', 'auto', 'important');
+      container.style.setProperty('bottom', 'auto', 'important');
+      container.style.setProperty('left', `${newLeft}px`, 'important');
+      container.style.setProperty('top', `${newTop}px`, 'important');
+    }
+
+    function onPointerUp(e) {
+      if (!isDragging) return;
+      isDragging = false;
+      try {
+        dragHandle.releasePointerCapture(e.pointerId);
+      } catch (err) {}
+      dragHandle.removeEventListener('pointermove', onPointerMove);
+      dragHandle.removeEventListener('pointerup', onPointerUp);
+      dragHandle.removeEventListener('pointercancel', onPointerUp);
+    }
   }
 
   // ── Runtime Messages ──

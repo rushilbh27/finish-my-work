@@ -109,12 +109,8 @@ async function handleAIRequest(request) {
             error: `Groq rate limit: wait ${e.waitSec || 5}s`
           };
         }
-        // Return clear Groq error so user knows exact key/network status instead of silently falling back to slow 30s Free AI
-        return {
-          success: false,
-          source: 'groq',
-          error: `Groq error: ${e.message.replace(/Groq \[[^\]]+\] /, '')}`
-        };
+        // Fallback to Free AI if Groq models hit 404 or server outage, notifying the user
+        providerErrorNotice = `⚠️ Groq error: ${e.message.replace(/Groq \[[^\]]+\] /, '')}. Solving via Free AI…`;
       }
     } else {
       providerErrorNotice = '⚠️ Groq key missing. Continuing with Free AI...';
@@ -184,13 +180,79 @@ async function handleAIRequest(request) {
   };
 }
 
+// ── GROQ DYNAMIC MODELS CACHE ──────────────────────────────────────────────
+let cachedGroqModels = null;
+let lastGroqModelsFetch = 0;
+
+async function getAvailableGroqModels(apiKey) {
+  const now = Date.now();
+  if (cachedGroqModels && cachedGroqModels.length > 0 && (now - lastGroqModelsFetch < 300000)) {
+    return cachedGroqModels;
+  }
+
+  try {
+    const res = await fetch('https://api.groq.com/openai/v1/models', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      signal: AbortSignal.timeout(4000)
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data?.data)) {
+        const textModels = data.data
+          .map(m => m.id)
+          .filter(id => {
+            const low = id.toLowerCase();
+            return !low.includes('whisper') && 
+                   !low.includes('guard') && 
+                   !low.includes('embed') && 
+                   !low.includes('moderation') &&
+                   !low.includes('audio');
+          });
+
+        if (textModels.length > 0) {
+          textModels.sort((a, b) => {
+            const score = (id) => {
+              const low = id.toLowerCase();
+              if (low.includes('120b')) return 100;
+              if (low.includes('r1') || low.includes('reasoner')) return 95;
+              if (low.includes('70b') || low.includes('maverick')) return 90;
+              if (low.includes('32b') || low.includes('qwen')) return 80;
+              if (low.includes('20b')) return 70;
+              if (low.includes('8b') || low.includes('scout') || low.includes('instant')) return 60;
+              return 50;
+            };
+            return score(b) - score(a);
+          });
+          cachedGroqModels = textModels;
+          lastGroqModelsFetch = now;
+          return textModels;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[Groq] Could not fetch live models:', err.message);
+  }
+
+  return [
+    'openai/gpt-oss-120b',
+    'openai/gpt-oss-20b',
+    'llama-3.3-70b-versatile',
+    'llama-3.1-8b-instant',
+    'qwen-2.5-32b',
+    'deepseek-r1-distill-llama-70b',
+    'llama3-70b-8192',
+    'llama3-8b-8192'
+  ];
+}
+
 // ── PROVIDER 1: Groq Cloud (Free with Google, 30 RPM, 300 t/s) ──────────
 async function callGroq(apiKey, prompt, imageBase64 = null, system = '') {
-  // Groq production models: Llama 3.3 70B (primary reasoning) -> Llama 3.1 8B (30,000 TPM fallback)
-  // Note: Older preview vision models (11b/90b) were decommissioned by Groq.
-  // Full question text, math formulas, and LaTeX are preserved in prompt for 100% accurate reasoning.
-  const models = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
-
+  const models = await getAvailableGroqModels(apiKey);
   let lastError = null;
 
   for (const model of models) {
@@ -229,7 +291,6 @@ async function callGroq(apiKey, prompt, imageBase64 = null, system = '') {
         lastError = new Error(`Groq [${model}] 429 Rate Limit`);
         lastError.rateLimited = true;
         lastError.waitSec = waitSec;
-        // Move immediately to next model in cascade (e.g. llama-3.1-8b-instant with 30k TPM)
         continue;
       }
 
@@ -240,6 +301,7 @@ async function callGroq(apiKey, prompt, imageBase64 = null, system = '') {
           const parsed = JSON.parse(errText);
           if (parsed.error?.message) errMsg = parsed.error.message;
         } catch (e) {}
+        console.warn(`[Groq] Model ${model} returned HTTP ${res.status}: ${errMsg}. Cascading to next model...`);
         lastError = new Error(`Groq [${model}] HTTP ${res.status}: ${errMsg}`);
         continue;
       }

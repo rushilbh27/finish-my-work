@@ -429,4 +429,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       showNotification('Settings saved successfully.', 'success');
     }, 700);
   });
+
+  const btnReloadExt = document.getElementById('btn-reload-ext');
+  btnReloadExt?.addEventListener('click', () => {
+    btnReloadExt.textContent = '↻ Reloading…';
+    if (chrome?.runtime?.reload) {
+      chrome.runtime.reload();
+    } else {
+      location.reload();
+    }
+  });
 });
