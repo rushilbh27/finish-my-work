@@ -715,6 +715,7 @@ window.UniversalSolver = {
   findStartAttemptButton() {
     const candidates = Array.from(document.querySelectorAll('button, a, input[type="submit"], input[type="button"], div[role="button"]'));
     return candidates.find(b => {
+      if (b.closest('#peslms-autopilot-root')) return false;
       if (b.offsetWidth === 0 || b.offsetHeight === 0 || b.style.display === 'none') return false;
       if (b.disabled || b.hasAttribute('disabled') || b.getAttribute('aria-disabled') === 'true') return false;
       const txt = (b.innerText || b.value || b.getAttribute('aria-label') || '').trim().toLowerCase();
@@ -806,7 +807,7 @@ window.UniversalSolver = {
       'button.mat-button[class*="next"]:not([disabled])'
     ].join(', ');
     const explicit = document.querySelector(explicitSelector);
-    if (explicit && explicit.offsetWidth > 0 && explicit.offsetHeight > 0 && explicit.style.display !== 'none' && !explicit.disabled) {
+    if (explicit && !explicit.closest('#peslms-autopilot-root') && explicit.offsetWidth > 0 && explicit.offsetHeight > 0 && explicit.style.display !== 'none' && !explicit.disabled) {
       const explicitTxt = (explicit.innerText || explicit.value || '').toLowerCase();
       if (!explicitTxt.includes('submit') && !explicitTxt.includes('prev')) {
         return explicit;
@@ -816,6 +817,7 @@ window.UniversalSolver = {
     // 2. Scan all clickable candidates by text, value, aria-label, title
     const candidates = Array.from(document.querySelectorAll('button, a, input[type="button"], input[type="submit"], div[role="button"]'));
     return candidates.find(b => {
+      if (b.closest('#peslms-autopilot-root')) return false;
       if (b.offsetWidth === 0 || b.offsetHeight === 0 || b.style.display === 'none') return false;
       if (b.disabled || b.hasAttribute('disabled') || b.getAttribute('aria-disabled') === 'true' || b.classList.contains('mat-button-disabled') || b.classList.contains('disabled')) return false;
       if (b.closest('#confirm-modal, .modal:not(.show)') && getComputedStyle(b.closest('#confirm-modal, .modal')).display === 'none') return false;
@@ -877,6 +879,7 @@ window.UniversalSolver = {
     const paletteElements = Array.from(document.querySelectorAll(
       '.question-palette button, .palette button, .question-nav button, [class*="palette"] button, [class*="nav-item"] button, button.circle-btn, button[class*="number"], .question-palette div, .palette div, .question-nav div, [class*="palette"] span, .question-nav span, .circle-btn, button, a'
     )).filter(b => {
+      if (b.closest('#peslms-autopilot-root')) return false;
       if (b.offsetWidth === 0 || b.offsetHeight === 0) return false;
       const rect = b.getBoundingClientRect();
       if (rect.width > 90 || rect.height > 90) return false;
@@ -910,6 +913,7 @@ window.UniversalSolver = {
   findSubmitButton() {
     const candidates = Array.from(document.querySelectorAll('button, a, input[type="button"], input[type="submit"], div[role="button"]'));
     return candidates.find(b => {
+      if (b.closest('#peslms-autopilot-root')) return false;
       if (b.offsetWidth === 0 || b.offsetHeight === 0 || b.style.display === 'none') return false;
       if (b.disabled || b.hasAttribute('disabled') || b.getAttribute('aria-disabled') === 'true' || b.classList.contains('mat-button-disabled') || b.classList.contains('disabled')) return false;
       const txt = (b.innerText || b.value || b.getAttribute('aria-label') || '').trim().toLowerCase();
@@ -1678,10 +1682,22 @@ window.UniversalSolver = {
       const q = questions[i];
       if (q.isAnswered) continue;
 
+      // Active live check: If question already has answer in DOM, don't call AI or waste tokens!
+      if (q.textInput && (q.textInput.value || q.textInput.innerText || '').trim().length > 0) {
+        q.isAnswered = true;
+        updateStatus?.(`Q${i + 1} already answered. Advancing…`);
+        continue;
+      }
+      if (q.options && q.options.some(o => o.element?.checked || o.element?.getAttribute('aria-checked') === 'true' || o.labelEl?.closest('.mat-radio-checked, .mat-mdc-radio-checked'))) {
+        q.isAnswered = true;
+        updateStatus?.(`Q${i + 1} choice already selected. Advancing…`);
+        continue;
+      }
+
       let answered = false;
       let attempts = 0;
 
-      while (!answered && isRunningCallback() && attempts < 8) {
+      while (!answered && isRunningCallback() && attempts < 2) {
         attempts++;
         updateStatus?.(`Solving question ${i + 1} of ${questions.length}...`);
         const res = await this.solveQuestionItem(q, updateStatus);
@@ -1693,7 +1709,7 @@ window.UniversalSolver = {
         }
 
         if (res.rateLimited) {
-          let waitTime = (res.waitSec || 7) + 1;
+          let waitTime = Math.min(res.waitSec || 5, 10);
           const prov = res.source ? res.source.toUpperCase() : 'AI';
           while (waitTime > 0 && isRunningCallback()) {
             updateStatus?.(`⏳ ${prov} limit: waiting ${waitTime}s to solve Q${i + 1}...`);
@@ -1701,23 +1717,23 @@ window.UniversalSolver = {
             waitTime--;
           }
         } else {
-          // If unsupported question format or fatal error, DO NOT retry 8 times!
+          // If unsupported question format or failure after 2 attempts, skip to avoid wasting tokens
           if (res.message && (res.message.includes('Unsupported') || res.message.includes('Could not match') || attempts >= 2)) {
-            updateStatus?.(`⚠️ Q${i + 1}: ${res.message}. Skipping to next question...`);
+            updateStatus?.(`⚠️ Q${i + 1}: ${res.message || 'Skipped'}. Advancing…`);
             q.isAnswered = true;
             q.skipped = true;
-            await new Promise(r => setTimeout(r, 1500));
+            await new Promise(r => setTimeout(r, 1000));
             break;
           }
-          updateStatus?.(`Retrying Q${i + 1} in 2s... (${(res.message || 'error').slice(0, 30)})`);
-          await new Promise(r => setTimeout(r, 2000));
+          updateStatus?.(`Retrying Q${i + 1}... (${(res.message || 'error').slice(0, 30)})`);
+          await new Promise(r => setTimeout(r, 1200));
         }
       }
 
       if (!isRunningCallback()) return { questionsFound: true, allAnswered: false, stopped: true };
 
       // Brief delay between questions
-      await new Promise(r => setTimeout(r, 1000));
+      await new Promise(r => setTimeout(r, 600));
     }
 
     // Verify
@@ -1784,19 +1800,34 @@ window.UniversalSolver = {
         await chrome.storage.local.set({ autopilotBatchState: state });
 
         nextBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        await new Promise(r => setTimeout(r, 500));
-        nextBtn.click();
+        await new Promise(r => setTimeout(r, 400));
         
-        // Single-action navigation: wait for SPA DOM transition without firing conflicting key events
-        await new Promise(r => setTimeout(r, 1800));
+        // Full event cascade for Angular Material 18 & web components
+        const innerTarget = nextBtn.querySelector('.mdc-button__label, .mat-mdc-button-touch-target') || nextBtn;
+        ['pointerdown', 'mousedown', 'mouseup', 'click'].forEach(evt => {
+          try {
+            innerTarget.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window }));
+            if (nextBtn !== innerTarget) {
+              nextBtn.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window }));
+            }
+          } catch (e) {}
+        });
+        try { nextBtn.click(); } catch (e) {}
+
+        // For SPAs (like IITM) supporting keyboard arrows ("Use arrows ← and →")
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39, bubbles: true }));
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39, bubbles: true }));
+
+        await new Promise(r => setTimeout(r, 1600));
         continue;
       }
 
       // Fallback for SPAs that only support keyboard arrows
       if (totalQNum && currentQNum < totalQNum) {
         updateStatus?.(`[Draft] Advancing via ArrowRight…`);
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39, bubbles: true }));
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39, bubbles: true }));
-        await new Promise(r => setTimeout(r, 1800));
+        await new Promise(r => setTimeout(r, 1600));
         continue;
       }
 
@@ -1879,15 +1910,31 @@ window.UniversalSolver = {
         if (nextBtn) {
           updateStatus?.(`[Submit] Question ${currentQNum} answered. Advancing…`);
           nextBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          await new Promise(r => setTimeout(r, 500));
-          nextBtn.click();
-          await new Promise(r => setTimeout(r, 1800));
+          await new Promise(r => setTimeout(r, 400));
+          
+          const innerTarget = nextBtn.querySelector('.mdc-button__label, .mat-mdc-button-touch-target') || nextBtn;
+          ['pointerdown', 'mousedown', 'mouseup', 'click'].forEach(evt => {
+            try {
+              innerTarget.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window }));
+              if (nextBtn !== innerTarget) {
+                nextBtn.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window }));
+              }
+            } catch (e) {}
+          });
+          try { nextBtn.click(); } catch (e) {}
+
+          // For SPAs (like IITM) supporting keyboard arrows ("Use arrows ← and →")
+          window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39, bubbles: true }));
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39, bubbles: true }));
+
+          await new Promise(r => setTimeout(r, 1600));
           continue;
         }
 
         if (totalQNum && currentQNum < totalQNum) {
+          window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39, bubbles: true }));
           document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39, bubbles: true }));
-          await new Promise(r => setTimeout(r, 1800));
+          await new Promise(r => setTimeout(r, 1600));
           continue;
         }
       }

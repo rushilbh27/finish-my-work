@@ -104,12 +104,17 @@ async function handleAIRequest(request) {
           return {
             success: false,
             rateLimited: true,
-            waitSec: e.waitSec || 7,
+            waitSec: e.waitSec || 5,
             source: 'groq',
-            error: `Groq rate limit: wait ${e.waitSec || 7}s`
+            error: `Groq rate limit: wait ${e.waitSec || 5}s`
           };
         }
-        providerErrorNotice = `⚠️ Groq error: ${e.message.slice(0, 32)}. Continuing with Free AI...`;
+        // Return clear Groq error so user knows exact key/network status instead of silently falling back to slow 30s Free AI
+        return {
+          success: false,
+          source: 'groq',
+          error: `Groq error: ${e.message.replace(/Groq \[[^\]]+\] /, '')}`
+        };
       }
     } else {
       providerErrorNotice = '⚠️ Groq key missing. Continuing with Free AI...';
@@ -181,28 +186,15 @@ async function handleAIRequest(request) {
 
 // ── PROVIDER 1: Groq Cloud (Free with Google, 30 RPM, 300 t/s) ──────────
 async function callGroq(apiKey, prompt, imageBase64 = null, system = '') {
-  // If an image is attached, use Groq vision models; otherwise try 70B then 8B (30,000 TPM limit!) then mixtral
-  const models = imageBase64
-    ? ['llama-3.2-11b-vision-preview', 'llama-3.2-90b-vision-preview']
-    : ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768'];
+  // Groq production models: Llama 3.3 70B (primary reasoning) -> Llama 3.1 8B (30,000 TPM fallback)
+  // Note: Older preview vision models (11b/90b) were decommissioned by Groq.
+  // Full question text, math formulas, and LaTeX are preserved in prompt for 100% accurate reasoning.
+  const models = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant'];
 
   let lastError = null;
 
   for (const model of models) {
     try {
-      const isVisionModel = model.includes('vision');
-      const userContent = (imageBase64 && isVisionModel)
-        ? [
-            { type: 'text', text: prompt },
-            {
-              type: 'image_url',
-              image_url: {
-                url: `data:${imageBase64.mimeType || 'image/png'};base64,${imageBase64.data}`
-              }
-            }
-          ]
-        : prompt;
-
       const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -214,7 +206,7 @@ async function callGroq(apiKey, prompt, imageBase64 = null, system = '') {
           model: model,
           messages: [
             { role: 'system', content: system },
-            { role: 'user', content: userContent }
+            { role: 'user', content: prompt }
           ],
           temperature: 0.1,
           max_tokens: 150
@@ -222,7 +214,7 @@ async function callGroq(apiKey, prompt, imageBase64 = null, system = '') {
       });
 
       if (res.status === 429) {
-        let waitSec = 7;
+        let waitSec = 5;
         try {
           const errJson = await res.json();
           const errMsg = errJson?.error?.message || '';
@@ -243,7 +235,12 @@ async function callGroq(apiKey, prompt, imageBase64 = null, system = '') {
 
       if (!res.ok) {
         const errText = await res.text();
-        lastError = new Error(`Groq [${model}] HTTP ${res.status}: ${errText.slice(0, 100)}`);
+        let errMsg = errText.slice(0, 100);
+        try {
+          const parsed = JSON.parse(errText);
+          if (parsed.error?.message) errMsg = parsed.error.message;
+        } catch (e) {}
+        lastError = new Error(`Groq [${model}] HTTP ${res.status}: ${errMsg}`);
         continue;
       }
 

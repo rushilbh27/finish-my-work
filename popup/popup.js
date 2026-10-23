@@ -141,7 +141,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     clearErrors();
   });
 
+  function autoPersistKeys() {
+    const groqKey = groqInput.value.trim();
+    const geminiKey = geminiInput.value.trim();
+    const openrouterKey = openrouterInput.value.trim();
+    const data = {
+      groqApiKey: groqKey,
+      geminiApiKey: geminiKey,
+      openrouterApiKey: openrouterKey
+    };
+    if (groqKey.startsWith('gsk_') && (!currentProvider || currentProvider === 'free')) {
+      data.aiProvider = 'groq';
+      currentProvider = 'groq';
+    }
+    chrome.storage.local.set(data);
+    updateStatusBadge();
+  }
+
+  [groqInput, geminiInput, openrouterInput].forEach(inp => {
+    inp.addEventListener('input', autoPersistKeys);
+    inp.addEventListener('change', autoPersistKeys);
+  });
+
   btnCloseSettings.addEventListener('click', () => {
+    autoPersistKeys();
     viewSettings.classList.add('hidden');
     viewMain.classList.remove('hidden');
     clearErrors();
