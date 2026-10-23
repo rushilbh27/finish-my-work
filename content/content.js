@@ -30,7 +30,7 @@
 
   container.innerHTML = `
     <!-- Minimized Docked Tab (High Visibility Neo-Brutalist Sticker) -->
-    <button class="peslms-dock-tab" id="peslms-dock-tab" style="display: none;" title="Expand Finish My Work HUD" aria-label="Expand Finish My Work HUD">
+    <button class="peslms-dock-tab hidden" id="peslms-dock-tab" title="Expand Finish My Work HUD" aria-label="Expand Finish My Work HUD">
       <span class="peslms-dock-dash">—</span>
       <span class="peslms-dock-title">FMW</span>
       <span class="peslms-dock-dot" id="peslms-dock-dot"></span>
@@ -93,14 +93,14 @@
 
   btnMinimize?.addEventListener('click', (e) => {
     e.stopPropagation();
-    mainWidget.style.display = 'none';
-    dockTab.style.display = 'flex';
+    mainWidget.classList.add('hidden');
+    dockTab.classList.remove('hidden');
   });
 
   dockTab?.addEventListener('click', (e) => {
     e.stopPropagation();
-    dockTab.style.display = 'none';
-    mainWidget.style.display = 'flex';
+    dockTab.classList.add('hidden');
+    mainWidget.classList.remove('hidden');
   });
 
   // Load saved agent mode
@@ -133,9 +133,13 @@
     }
   } catch (e) {}
 
-  btnClose.addEventListener('click', (e) => {
+  btnClose?.addEventListener('click', async (e) => {
     e.stopPropagation();
-    container.style.display = 'none';
+    container.style.setProperty('display', 'none', 'important');
+    showWidget = false;
+    try {
+      await chrome.storage.local.set({ showFloatingWidget: false });
+    } catch (err) {}
   });
 
   // ── Status helper ──
@@ -309,7 +313,13 @@
     } else if (request.action === 'SET_WIDGET_VISIBLE') {
       showWidget = request.visible;
       if (isExtensionEnabled) {
-        container.style.display = showWidget ? 'block' : 'none';
+        if (showWidget) {
+          container.style.removeProperty('display');
+          mainWidget.classList.remove('hidden');
+          dockTab.classList.add('hidden');
+        } else {
+          container.style.setProperty('display', 'none', 'important');
+        }
       }
       sendResponse({ status: 'ok' });
     } else if (request.action === 'TRIGGER_SOLVE') {
@@ -334,7 +344,15 @@
     } else if (request.action === 'TOGGLE_OVERLAY') {
       if (!isExtensionEnabled) return;
       const isHidden = container.style.display === 'none';
-      container.style.display = isHidden ? 'block' : 'none';
+      if (isHidden) {
+        container.style.removeProperty('display');
+        mainWidget.classList.remove('hidden');
+        dockTab.classList.add('hidden');
+        chrome.storage.local.set({ showFloatingWidget: true });
+      } else {
+        container.style.setProperty('display', 'none', 'important');
+        chrome.storage.local.set({ showFloatingWidget: false });
+      }
       sendResponse({ status: isHidden ? 'visible' : 'hidden' });
     }
     return true;
@@ -355,12 +373,20 @@
     if (mod && e.shiftKey && (e.key === 'H' || e.key === 'h')) {
       e.preventDefault();
       const isHidden = container.style.display === 'none';
-      container.style.display = isHidden ? 'block' : 'none';
+      if (isHidden) {
+        container.style.removeProperty('display');
+        mainWidget.classList.remove('hidden');
+        dockTab.classList.add('hidden');
+        chrome.storage.local.set({ showFloatingWidget: true });
+      } else {
+        container.style.setProperty('display', 'none', 'important');
+        chrome.storage.local.set({ showFloatingWidget: false });
+      }
     }
     if (e.key === 'Escape' && container.style.display !== 'none') {
-      if (dockTab && dockTab.style.display === 'none') {
-        mainWidget.style.display = 'none';
-        dockTab.style.display = 'flex';
+      if (dockTab && dockTab.classList.contains('hidden')) {
+        mainWidget.classList.add('hidden');
+        dockTab.classList.remove('hidden');
       }
     }
   });

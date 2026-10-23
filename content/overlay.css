@@ -29,8 +29,8 @@
 /* ── Collapsed Docked Tab (Tactile Neo-Brutalist Sticker) ── */
 .peslms-dock-tab {
   pointer-events: auto !important;
-  display: flex;
-  align-items: center;
+  display: flex !important;
+  align-items: center !important;
   gap: 8px;
   min-height: 44px;
   min-width: 44px;
@@ -41,6 +41,10 @@
   cursor: pointer !important;
   transition: transform 0.07s ease, box-shadow 0.07s ease !important;
   outline: none;
+}
+
+.peslms-dock-tab.hidden {
+  display: none !important;
 }
 
 .peslms-dock-tab:hover {
