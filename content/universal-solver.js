@@ -2,66 +2,95 @@ window.UniversalSolver = {
 
   // ── 0. Ground-Truth Answer Key from Page State / Inertia.js ──
   getVerifiedPageAnswers() {
+    if (this._cachedVerifiedMap && this._cachedVerifiedMap.size > 0) {
+      return this._cachedVerifiedMap;
+    }
+
     const map = new Map();
     try {
-      // 1. Inertia.js (QuizPractice.space and Laravel + Inertia SPAs)
-      const appEl = document.querySelector('#app[data-page], [data-page]');
-      if (appEl) {
-        const raw = appEl.getAttribute('data-page');
-        if (raw) {
-          const parsed = JSON.parse(raw);
-          const qp = parsed?.props?.question_paper || parsed?.props?.questionPaper;
-          const questions = qp?.questions || parsed?.props?.questions;
-          if (Array.isArray(questions)) {
-            questions.forEach((q, idx) => {
-              const domId = `question${idx + 1}`;
-              const longId = q.question_num_long ? String(q.question_num_long) : null;
-              const qType = (q.question_type || q.type || '').toUpperCase();
+      // 1. Check for existing data-inertia-props or data-page on DOM
+      let appEl = document.getElementById('app') || document.querySelector('[data-page], [data-inertia-props]');
+      let raw = appEl?.getAttribute('data-inertia-props') || appEl?.getAttribute('data-page');
 
-              let ansObj = null;
-              const hasOptions = Array.isArray(q.options) && q.options.length > 0;
+      // 2. If not found in DOM, bridge into page context to read Vue's $page.props
+      if (!raw && typeof document !== 'undefined') {
+        try {
+          const script = document.createElement('script');
+          script.textContent = `
+            try {
+              const app = document.getElementById('app');
+              const page = app?.__vue_app__?.config?.globalProperties?.$page;
+              if (page && page.props) {
+                app.setAttribute('data-inertia-props', JSON.stringify({
+                  props: page.props,
+                  url: page.url
+                }));
+              }
+            } catch(e) {}
+          `;
+          (document.head || document.documentElement).appendChild(script);
+          script.remove();
+          raw = document.getElementById('app')?.getAttribute('data-inertia-props');
+        } catch (e) {}
+      }
 
-              if (qType === 'MCQ' || qType === 'MSQ' || hasOptions) {
-                const correctIndices = [];
-                const correctIds = [];
-                const correctNumbers = [];
-                (q.options || []).forEach((opt, oIdx) => {
-                  if (opt.is_correct || opt.correct || opt.answer) {
-                    correctIndices.push(oIdx);
-                    if (opt.id) correctIds.push(String(opt.id));
-                    if (opt.option_number) correctNumbers.push(String(opt.option_number));
-                  }
-                });
-                if (correctIndices.length > 0) {
-                  const letters = correctIndices.map(i => String.fromCharCode(65 + i));
-                  ansObj = {
-                    type: (qType === 'MSQ' || correctIndices.length > 1) ? 'multichoice' : 'mcq',
-                    letters: letters,
-                    indices: correctIndices,
-                    optionIds: correctIds,
-                    optionNumbers: correctNumbers
-                  };
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const qp = parsed?.props?.question_paper || parsed?.props?.questionPaper || parsed?.question_paper;
+        const questions = qp?.questions || parsed?.props?.questions || parsed?.questions;
+        if (Array.isArray(questions)) {
+          questions.forEach((q, idx) => {
+            const domId = `question${idx + 1}`;
+            const longId = q.question_num_long ? String(q.question_num_long) : null;
+            const qType = (q.question_type || q.type || '').toUpperCase();
+
+            let ansObj = null;
+            const hasOptions = Array.isArray(q.options) && q.options.length > 0;
+
+            if (qType === 'MCQ' || qType === 'MSQ' || hasOptions) {
+              const correctIndices = [];
+              const correctIds = [];
+              const correctNumbers = [];
+              (q.options || []).forEach((opt, oIdx) => {
+                if (opt.is_correct || opt.correct || opt.answer) {
+                  correctIndices.push(oIdx);
+                  if (opt.id) correctIds.push(String(opt.id));
+                  if (opt.option_number) correctNumbers.push(String(opt.option_number));
                 }
-              } else if (q.value_start !== null && q.value_start !== undefined) {
+              });
+              if (correctIndices.length > 0) {
+                const letters = correctIndices.map(i => String.fromCharCode(65 + i));
                 ansObj = {
-                  type: 'text',
-                  value: String(q.value_start).trim(),
-                  valueEnd: q.value_end !== null && q.value_end !== undefined ? String(q.value_end).trim() : null
+                  type: (qType === 'MSQ' || correctIndices.length > 1) ? 'multichoice' : 'mcq',
+                  letters: letters,
+                  indices: correctIndices,
+                  optionIds: correctIds,
+                  optionNumbers: correctNumbers
                 };
               }
+            } else if (q.value_start !== null && q.value_start !== undefined) {
+              ansObj = {
+                type: 'text',
+                value: String(q.value_start).trim(),
+                valueEnd: q.value_end !== null && q.value_end !== undefined ? String(q.value_end).trim() : null
+              };
+            }
 
-              if (ansObj) {
-                map.set(domId, ansObj);
-                map.set(domId.toLowerCase(), ansObj);
-                if (longId) map.set(longId, ansObj);
-                if (q.id) map.set(String(q.id), ansObj);
-              }
-            });
-          }
+            if (ansObj) {
+              map.set(domId, ansObj);
+              map.set(domId.toLowerCase(), ansObj);
+              if (longId) map.set(longId, ansObj);
+              if (q.id) map.set(String(q.id), ansObj);
+            }
+          });
         }
       }
     } catch (e) {
       console.warn('[Autopilot] Error reading page verified answers:', e);
+    }
+
+    if (map.size > 0) {
+      this._cachedVerifiedMap = map;
     }
     return map;
   },
@@ -99,6 +128,7 @@ window.UniversalSolver = {
       q.textInput.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true }));
       q.textInput.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
       q.textInput.blur();
+      await new Promise(r => setTimeout(r, 60));
       q.isAnswered = true;
 
       q.container.style.transition = 'box-shadow 0.3s ease';
@@ -116,8 +146,9 @@ window.UniversalSolver = {
       if (verified.optionIds?.length > 0) {
         target = q.options.find(o => 
           verified.optionIds.includes(o.id) || 
+          verified.optionIds.includes(o.element?.getAttribute('value')) ||
           verified.optionIds.includes(o.element?.value) || 
-          verified.optionIds.includes(o.element?.id?.replace(/^r[12]/, ''))
+          verified.optionIds.some(id => o.element?.id && o.element.id.endsWith(id))
         );
       }
       if (!target && verified.optionNumbers?.length > 0) {
@@ -137,15 +168,8 @@ window.UniversalSolver = {
         radioBtn.click();
         radioBtn.setAttribute('aria-checked', 'true');
         radioBtn.setAttribute('data-state', 'checked');
-
-        ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach(evt => {
-          radioBtn.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window }));
-        });
-
-        const label = (radioBtn.id ? document.querySelector(`label[for="${radioBtn.id}"]`) : null) || target.labelEl;
-        if (label && label !== radioBtn) {
-          label.click();
-        }
+        target.checked = true;
+        await new Promise(r => setTimeout(r, 80));
 
         if (radioBtn.tagName === 'INPUT') {
           radioBtn.checked = true;
@@ -166,10 +190,16 @@ window.UniversalSolver = {
     // 3. MSQ / Multi-Choice (Checkboxes)
     if (verified.type === 'multichoice' && q.options && q.options.length > 0) {
       let checkedCount = 0;
-      q.options.forEach((opt, idx) => {
+      for (let idx = 0; idx < q.options.length; idx++) {
+        const opt = q.options[idx];
         const letter = String.fromCharCode(65 + idx);
         const shouldBeChecked = 
-          (verified.optionIds?.length && (verified.optionIds.includes(opt.id) || verified.optionIds.includes(opt.element?.value) || verified.optionIds.includes(opt.element?.id?.replace(/^r[12]/, '')))) ||
+          (verified.optionIds?.length && (
+            verified.optionIds.includes(opt.id) || 
+            verified.optionIds.includes(opt.element?.getAttribute('value')) || 
+            verified.optionIds.includes(opt.element?.value) || 
+            verified.optionIds.some(id => opt.element?.id && opt.element.id.endsWith(id))
+          )) ||
           (verified.optionNumbers?.length && verified.optionNumbers.includes(opt.element?.getAttribute('title'))) ||
           (verified.indices?.length && verified.indices.includes(idx)) ||
           (verified.letters?.length && (verified.letters.includes(letter) || verified.letters.includes(opt.letter?.toUpperCase())));
@@ -181,6 +211,7 @@ window.UniversalSolver = {
           if (inputEl.checked !== !!shouldBeChecked) {
             inputEl.focus();
             inputEl.click();
+            await new Promise(r => setTimeout(r, 80));
             if (inputEl.checked !== !!shouldBeChecked) {
               inputEl.checked = !!shouldBeChecked;
               inputEl.dispatchEvent(new Event('input', { bubbles: true }));
@@ -193,15 +224,11 @@ window.UniversalSolver = {
           if (isAriaChecked !== !!shouldBeChecked) {
             roleCheckbox.focus();
             roleCheckbox.click();
-            roleCheckbox.setAttribute('aria-checked', shouldBeChecked ? 'true' : 'false');
-            roleCheckbox.setAttribute('data-state', shouldBeChecked ? 'checked' : 'unchecked');
-            ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach(evt => {
-              roleCheckbox.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window }));
-            });
+            await new Promise(r => setTimeout(r, 80));
           }
           if (shouldBeChecked) checkedCount++;
         }
-      });
+      }
 
       q.isAnswered = true;
       q.container.style.transition = 'box-shadow 0.3s ease';
@@ -403,7 +430,7 @@ window.UniversalSolver = {
                               r.getAttribute('aria-checked') === 'true' ||
                               r.getAttribute('data-state') === 'checked';
 
-            const optId = r.id?.replace(/^r[12]/, '') || r.getAttribute('value') || innerInput?.value || null;
+            const optId = r.getAttribute('value') || r.value || innerInput?.value || r.id?.replace(/^r[12]\d*/, '') || null;
 
             return {
               id: optId,
@@ -477,7 +504,7 @@ window.UniversalSolver = {
                               c.getAttribute('aria-checked') === 'true' ||
                               c.getAttribute('data-state') === 'checked';
 
-            const optId = c.id?.replace(/^r[12]/, '') || innerInput?.id?.replace(/^r[12]/, '') || innerInput?.value || c.getAttribute('value') || null;
+            const optId = c.getAttribute('value') || innerInput?.getAttribute('value') || innerInput?.value || c.value || c.id?.replace(/^r[12]\d*/, '') || null;
 
             return {
               id: optId,
@@ -1874,15 +1901,7 @@ window.UniversalSolver = {
       radioBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
       radioBtn.focus();
       radioBtn.click();
-
-      ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach(evt => {
-        radioBtn.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window }));
-      });
-
-      const label = (radioBtn.id ? document.querySelector(`label[for="${radioBtn.id}"]`) : null) || target.labelEl;
-      if (label && label !== radioBtn) {
-        label.click();
-      }
+      await new Promise(r => setTimeout(r, 80));
 
       if (radioBtn.tagName === 'INPUT') {
         radioBtn.checked = true;
