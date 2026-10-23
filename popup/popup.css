@@ -530,6 +530,22 @@ input:checked + .power-slider:before {
   box-shadow: 0px 0px 0px var(--ink);
 }
 
+.tech-action-btn {
+  display: block;
+  font-family: var(--font-mono);
+  transition: transform 0.07s ease, box-shadow 0.07s ease, filter 0.07s ease;
+  user-select: none;
+}
+
+.tech-action-btn:hover {
+  filter: brightness(1.06);
+  transform: translate(-1px, -1px);
+}
+
+.tech-action-btn:active {
+  transform: translate(1.5px, 1.5px);
+}
+
 /* Callout Boxes */
 .callout-box {
   background: var(--card);

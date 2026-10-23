@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const activeBadge        = document.getElementById('active-provider-badge');
   const notifyBanner       = document.getElementById('notify-banner');
 
-  const tabBtns            = Array.from(document.querySelectorAll('.tech-tab-btn'));
+  const tabBtns            = Array.from(document.querySelectorAll('.provider-tabs .tech-tab-btn'));
   const providerCards      = Array.from(document.querySelectorAll('.provider-card'));
   const btnSave            = document.getElementById('btn-save-key');
   
@@ -177,9 +177,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ── Provider Tab Switching (Strict 1-at-a-time) ──
   function selectTab(provider) {
-    if (provider !== 'about') {
-      currentProvider = provider;
+    if (!provider || !['free', 'groq', 'gemini', 'openrouter'].includes(provider)) {
+      provider = currentProvider || 'groq';
     }
+    currentProvider = provider;
     clearErrors();
 
     tabBtns.forEach(btn => {
@@ -431,7 +432,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   const btnReloadExt = document.getElementById('btn-reload-ext');
-  btnReloadExt?.addEventListener('click', () => {
+  btnReloadExt?.addEventListener('click', (e) => {
+    e?.stopPropagation?.();
     btnReloadExt.textContent = '↻ Reloading…';
     if (chrome?.runtime?.reload) {
       chrome.runtime.reload();
@@ -444,7 +446,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const btnTestGroq = document.getElementById('btn-test-groq');
   const groqTestStatus = document.getElementById('groq-test-status');
 
-  btnTestGroq?.addEventListener('click', async () => {
+  btnTestGroq?.addEventListener('click', async (e) => {
+    e?.stopPropagation?.();
+    selectTab('groq');
+
     const key = groqInput.value.trim();
     if (!key) {
       groqTestStatus.classList.remove('hidden');
@@ -477,6 +482,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         groqTestStatus.innerHTML = `❌ Groq rejected key (HTTP ${res.status}):<br><b>${errMsg}</b>`;
         btnTestGroq.disabled = false;
         btnTestGroq.textContent = '⚡ Test Groq Key & Network Now';
+        selectTab('groq');
         return;
       }
 
@@ -484,7 +490,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       const models = (data.data || []).map(m => m.id).filter(id => !id.includes('whisper') && !id.includes('guard'));
       
       // Auto-save key since it is verified valid!
-      chrome.storage.local.set({ groqApiKey: key, aiProvider: 'groq' });
+      await chrome.storage.local.set({ groqApiKey: key, aiProvider: 'groq' });
+      currentProvider = 'groq';
+      selectTab('groq');
+      updateStatusBadge();
 
       groqTestStatus.style.color = '#15803d';
       groqTestStatus.innerHTML = `✅ <b>Connection verified in ${latency}ms!</b><br>` +
@@ -498,5 +507,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     btnTestGroq.disabled = false;
     btnTestGroq.textContent = '⚡ Test Groq Key & Network Now';
+    selectTab('groq');
   });
 });
