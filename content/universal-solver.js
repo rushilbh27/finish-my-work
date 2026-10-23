@@ -1476,7 +1476,7 @@ window.UniversalSolver = {
         await new Promise(r => setTimeout(r, 1200));
       }
       if (!aiRes || !aiRes.success) {
-        const err = aiRes?.error || 'AI call failed';
+        const err = aiRes?.error || aiRes?.message || 'AI call failed';
         if (aiRes?.rateLimited) {
           updateStatus?.('⚠️ Free AI limit (1 req/30s). Enter Groq key in popup for instant speed!');
         } else {
@@ -1685,7 +1685,7 @@ window.UniversalSolver = {
           rateLimited: !!aiRes?.rateLimited, 
           waitSec: aiRes?.waitSec || 7, 
           source: aiRes?.source,
-          message: aiRes?.error || 'AI call failed' 
+          message: aiRes?.error || aiRes?.message || 'AI call failed' 
         };
       }
     }
@@ -1763,6 +1763,7 @@ window.UniversalSolver = {
           res.message.includes('Invalid API Key') ||
           res.message.includes('All AI engines unavailable') ||
           res.message.includes('key missing') ||
+          res.message.includes('AI call failed') ||
           res.message.includes('Failed to fetch')
         );
 
