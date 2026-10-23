@@ -69,13 +69,18 @@ window.UniversalSolver = {
           .replace(/•\s*/g, '')
           .trim();
 
+        const image = q.querySelector('img:not([src*="logo"]):not([src*="avatar"]):not([src*="icon"]):not([src*="theme"]):not([src*="unflagged"])');
+
         if (rawQText.length < 5) {
           const promptEl = q.querySelector('.question-text, .q-text, .prompt, h2, h3, p');
           if (promptEl) rawQText = promptEl.innerText.trim();
         }
 
+        if (rawQText.length < 5 && image) {
+          rawQText = 'Question problem statement is displayed in the attached image.';
+        }
+
         const fullText = iitmCommonContext ? `[Reference / Common Information]:\n${iitmCommonContext}\n\n[Question]:\n${rawQText}` : rawQText;
-        const image = q.querySelector('img:not([src*="logo"]):not([src*="avatar"]):not([src*="icon"])');
 
         // Check A: Radio buttons (MCQ)
         const radioEls = Array.from(q.querySelectorAll('mat-radio-button, .mat-mdc-radio-button, [role="radio"], input[type="radio"]')).filter(r => {
@@ -1551,12 +1556,18 @@ window.UniversalSolver = {
 
     // ── 6. Short Answer / Numerical / Text / NAT ──
     if (q.type === 'text' && q.textInput) {
-      let aiRes = null;
-      if (q.isNAT || q.text.toLowerCase().includes('nat type') || q.text.toLowerCase().includes('numerical')) {
+      const isNAT = q.isNAT || 
+        q.text.toLowerCase().includes('nat type') || 
+        q.text.toLowerCase().includes('numerical') || 
+        q.text.toLowerCase().includes('numeric') ||
+        q.container?.innerText?.toLowerCase().includes('numeric') ||
+        q.container?.innerText?.toLowerCase().includes('type : sa');
+
+      if (isNAT) {
         updateStatus?.(`Calculating NAT numerical value...`);
         aiRes = await window.AIEngine.solveNATAnswer(q.text, q.image);
       } else {
-        aiRes = await window.AIEngine.solveBriefAnswer(q.text);
+        aiRes = await window.AIEngine.solveBriefAnswer(q.text, q.image);
       }
 
       if (aiRes?.warningNotice) {

@@ -111,16 +111,17 @@ window.AIEngine = {
       .map((opt, i) => `${String.fromCharCode(65 + i)}. ${opt.text}`)
       .join('\n');
 
-    let prompt = `Question: ${questionText}\n\nOptions:\n${formattedOptions}\n\n`;
+    let prompt = `Question:\n${questionText}\n\nOptions:\n${formattedOptions}\n\n`;
     if (imageBase64) {
-      prompt += `Note: An image or diagram is attached to this question. Please inspect it carefully.\n\n`;
+      prompt += `Note: An image or diagram containing mathematical formulas/graphs is attached to this question. Inspect it with extreme precision.\n\n`;
     }
-    prompt += `Task: Choose the correct option. Respond ONLY with the single uppercase option letter (from A to ${maxLetter}). Do not include any explanations or extra words.`;
+    prompt += `Task: Evaluate the question with rigorous academic and mathematical accuracy. Verify equations, constraints, and domains.\n` +
+      `Respond ONLY with the single uppercase option letter (from A to ${maxLetter}). Do not include any explanations or extra words.`;
 
     const result = await this.generateAnswer(
       prompt,
       imageBase64,
-      `You are an expert academic exam solver. Output ONLY the single option letter from A to ${maxLetter}.`
+      `You are an expert academic and STEM exam solver. Output ONLY the single option letter from A to ${maxLetter}.`
     );
 
     if (!result?.success) {
@@ -157,11 +158,21 @@ window.AIEngine = {
   },
 
   // Short answer solver for open-ended or fill-in-the-blank questions
-  async solveBriefAnswer(questionText) {
-    const prompt = `Question: "${questionText}"\n\nProvide the exact, concise answer (one word or short phrase if asked, otherwise 1 brief sentence). No preamble, no quotes, no JSON markup.`;
+  async solveBriefAnswer(questionText, imgElement = null) {
+    let imageBase64 = null;
+    if (imgElement) {
+      imageBase64 = await this.imageToBase64(imgElement);
+    }
+
+    let prompt = `Question:\n"${questionText}"\n\n`;
+    if (imageBase64) {
+      prompt += `Note: An image containing the question, diagram, or formula is attached. Inspect all values carefully.\n\n`;
+    }
+    prompt += `Provide the exact, concise answer (one word, short phrase, or exact numerical/code value). No preamble, no quotes, no JSON markup. Output ONLY the answer directly.`;
+
     const res = await this.generateAnswer(
       prompt,
-      null,
+      imageBase64,
       'You are a high-scoring academic exam solver. Output ONLY the answer string directly, never JSON, markdown, or reasoning.'
     );
 
@@ -194,7 +205,7 @@ window.AIEngine = {
     return res;
   },
 
-  // Numerical Answer Type (NAT) solver for STEM and math problems
+  // Numerical Answer Type (NAT) solver for STEM and math problems (IITM NAT format)
   async solveNATAnswer(questionText, imgElement = null) {
     let imageBase64 = null;
     if (imgElement) {
@@ -202,12 +213,12 @@ window.AIEngine = {
     }
 
     const prompt = `CRITICAL TASK: NUMERICAL ANSWER TYPE (NAT) QUESTION.\n\n` +
-      `Question: "${questionText}"\n\n` +
-      (imageBase64 ? `Note: An image or diagram is attached. Inspect it carefully.\n\n` : '') +
+      `Question:\n"${questionText}"\n\n` +
+      (imageBase64 ? `Note: An image containing mathematical equations, matrices, or diagrams is attached. Read all symbols and coefficients carefully.\n\n` : '') +
       `INSTRUCTIONS:\n` +
       `1. Compute the exact mathematical or numerical value required by the question.\n` +
       `2. Respond ONLY with the final numerical value (e.g., "4", "-2.5", "0.75", "12").\n` +
-      `3. Do NOT include any variable names (like "x = "), units, words, fractions (convert to decimal if required), or explanations. Output ONLY the raw number directly.`;
+      `3. Do NOT include any variable names (e.g. do NOT write "x = 4", write "4"), units, words, fractions (convert to decimal if needed), or explanations. Output ONLY the pure numerical value.`;
 
     const result = await this.generateAnswer(
       prompt,
@@ -226,7 +237,7 @@ window.AIEngine = {
     return result;
   },
 
-  // Multi-choice solver (Select all that apply / checkboxes)
+  // Multi-choice solver (Select all that apply / checkboxes / MSQ)
   async solveMultiChoice(questionText, options, imgElement = null) {
     let imageBase64 = null;
     if (imgElement) {
@@ -238,14 +249,14 @@ window.AIEngine = {
       .map((opt, i) => `${String.fromCharCode(65 + i)}. ${opt.text}`)
       .join('\n');
 
-    let prompt = `CRITICAL TASK: MULTIPLE-ANSWER QUESTION ("Select all that apply").\n\n` +
-      `Question: "${questionText}"\n\n` +
+    let prompt = `CRITICAL TASK: MULTIPLE SELECT QUESTION (MSQ / "Select all that apply").\n\n` +
+      `Question:\n"${questionText}"\n\n` +
       `Options:\n${formattedOptions}\n\n` +
-      (imageBase64 ? `Note: An image or diagram is attached. Please inspect it carefully.\n\n` : '') +
-      `IMPORTANT INSTRUCTIONS:\n` +
-      `1. Multiple options are correct. In many cases, 2, 3, or ALL options (${options.map((_, i) => String.fromCharCode(65 + i)).join(', ')}) are genuine valid answers!\n` +
-      `2. You must evaluate EACH option individually. If an option is a correct answer, include it.\n` +
-      `3. Respond ONLY with the comma-separated uppercase option letters of ALL correct choices, e.g. "A, B, C, D" or "A, C". No explanations or extra text.`;
+      (imageBase64 ? `Note: An image or diagram is attached. Inspect all formulas, conditions, and domains carefully.\n\n` : '') +
+      `CRITICAL INSTRUCTIONS FOR MSQ:\n` +
+      `1. In IIT / academic exams, MSQs often have 1, 2, 3, or ALL options (${options.map((_, i) => String.fromCharCode(65 + i)).join(', ')}) valid and correct!\n` +
+      `2. You MUST evaluate and test EACH option independently against mathematical definitions, edge cases, and domains.\n` +
+      `3. Respond ONLY with the comma-separated uppercase option letters of ALL correct choices, e.g. "A, B, C, D" or "A, C" or "B". No explanations or extra text.`;
 
     const result = await this.generateAnswer(
       prompt,

@@ -96,7 +96,7 @@ async function handleAIRequest(request) {
   if (provider === 'groq') {
     if (groqKey) {
       try {
-        const result = await callGroq(groqKey, prompt, system);
+        const result = await callGroq(groqKey, prompt, imageBase64, system);
         if (result) return { success: true, text: result, source: 'groq' };
       } catch (e) {
         console.warn('[Autopilot AI] Groq call failed:', e.message);
@@ -171,19 +171,30 @@ async function handleAIRequest(request) {
 }
 
 // ── PROVIDER 1: Groq Cloud (Free with Google, 30 RPM, 300 t/s) ──────────
-async function callGroq(apiKey, prompt, system) {
-  const models = [
-    'qwen/qwen3.8-27b',
-    'llama-3.3-70b-versatile',
-    'llama-3.1-8b-instant',
-    'openai/gpt-oss-120b',
-    'openai/gpt-oss-20b'
-  ];
+async function callGroq(apiKey, prompt, imageBase64 = null, system = '') {
+  // If an image is attached (diagram/math formula), prioritize Groq's multimodal vision models
+  const models = imageBase64
+    ? ['llama-3.2-11b-vision-preview', 'llama-3.2-90b-vision-preview', 'llama-3.3-70b-versatile', 'llama-3.1-8b-instant']
+    : ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'qwen/qwen3.8-27b', 'openai/gpt-oss-120b'];
+
   let lastError = null;
 
   for (const model of models) {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
+        const isVisionModel = model.includes('vision');
+        const userContent = (imageBase64 && isVisionModel)
+          ? [
+              { type: 'text', text: prompt },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:${imageBase64.mimeType || 'image/png'};base64,${imageBase64.data}`
+                }
+              }
+            ]
+          : prompt;
+
         const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
           method: 'POST',
           headers: {
@@ -195,7 +206,7 @@ async function callGroq(apiKey, prompt, system) {
             model: model,
             messages: [
               { role: 'system', content: system },
-              { role: 'user', content: prompt }
+              { role: 'user', content: userContent }
             ],
             temperature: 0.1,
             max_tokens: 150
