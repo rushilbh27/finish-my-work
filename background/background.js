@@ -252,11 +252,33 @@ async function getAvailableGroqModels(apiKey) {
 
 // ── PROVIDER 1: Groq Cloud (Free with Google, 30 RPM, 300 t/s) ──────────
 async function callGroq(apiKey, prompt, imageBase64 = null, system = '') {
-  const models = await getAvailableGroqModels(apiKey);
+  let models = await getAvailableGroqModels(apiKey);
   let lastError = null;
+
+  // If image is attached, prioritize vision-capable models
+  if (imageBase64) {
+    const visionModels = models.filter(m => m.toLowerCase().includes('vision'));
+    const otherModels = models.filter(m => !m.toLowerCase().includes('vision'));
+    models = [...visionModels, ...otherModels];
+  }
 
   for (const model of models) {
     try {
+      const isVisionModel = model.toLowerCase().includes('vision');
+      let userMessageContent = prompt;
+
+      if (imageBase64 && isVisionModel) {
+        userMessageContent = [
+          { type: 'text', text: prompt },
+          {
+            type: 'image_url',
+            image_url: {
+              url: `data:${imageBase64.mimeType || 'image/png'};base64,${imageBase64.data}`
+            }
+          }
+        ];
+      }
+
       const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -268,10 +290,10 @@ async function callGroq(apiKey, prompt, imageBase64 = null, system = '') {
           model: model,
           messages: [
             { role: 'system', content: system },
-            { role: 'user', content: prompt }
+            { role: 'user', content: userMessageContent }
           ],
           temperature: 0.1,
-          max_tokens: 150
+          max_tokens: 350
         })
       });
 
@@ -309,6 +331,9 @@ async function callGroq(apiKey, prompt, imageBase64 = null, system = '') {
       const data = await res.json();
       let content = data?.choices?.[0]?.message?.content?.trim();
       if (content) {
+        // Strip DeepSeek R1 / Qwen reasoning tags
+        content = content.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+
         if (content.startsWith('{') && content.endsWith('}')) {
           try {
             const parsed = JSON.parse(content);
@@ -426,7 +451,7 @@ async function callPollinations(prompt, system) {
     throw e;
   }
 
-  const text = await res.text();
+  let text = await res.text();
 
   if (res.status === 429 || text.includes('Free limit reached') || text.includes('Please wait') || text.includes('rate limit')) {
     const match = text.match(/Please wait (\d+)\s*seconds?/i);
@@ -438,6 +463,9 @@ async function callPollinations(prompt, system) {
   }
 
   if (!res.ok) throw new Error(`Pollinations HTTP ${res.status}`);
+
+  // Strip DeepSeek / Qwen reasoning tags
+  text = text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
 
   if (text && text.trim().startsWith('{')) {
     try {

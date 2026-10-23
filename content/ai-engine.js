@@ -134,8 +134,18 @@ window.AIEngine = {
       };
     }
 
-    const answer = result.text;
+    let answer = result.text;
     if (answer) {
+      if (answer.includes('<think>')) {
+        answer = answer.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+      }
+      if (answer.startsWith('{') && (answer.includes('"answer"') || answer.includes('"letter"') || answer.includes('"content"'))) {
+        try {
+          const parsed = JSON.parse(answer);
+          answer = parsed.letter || parsed.answer || parsed.content || answer;
+        } catch (e) {}
+      }
+
       // 1. Strict single letter regex
       const letterRegex = new RegExp(`\\b([A-${maxLetter}])\\b`, 'i');
       const letterMatch = answer.match(letterRegex);
@@ -178,6 +188,9 @@ window.AIEngine = {
 
     if (res?.success && res.text) {
       let clean = res.text.trim();
+      if (clean.includes('<think>')) {
+        clean = clean.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+      }
 
       // If output is raw JSON string like {"role":"assistant", ...}
       if (clean.startsWith('{') && (clean.includes('"role"') || clean.includes('"content"') || clean.includes('"reasoning"'))) {
@@ -229,6 +242,15 @@ window.AIEngine = {
 
     if (result?.success && result.text) {
       let clean = result.text.trim().replace(/^["'`]+|["'`]+$/g, '');
+      if (clean.includes('<think>')) {
+        clean = clean.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+      }
+      if (clean.startsWith('{') && (clean.includes('"role"') || clean.includes('"content"') || clean.includes('"reasoning"') || clean.includes('"answer"'))) {
+        try {
+          const parsed = JSON.parse(clean);
+          clean = String(parsed.content || parsed.answer || parsed.result || clean).trim();
+        } catch (e) {}
+      }
       
       // Strip common prefixes: "a = ", "answer = ", "value of a is "
       clean = clean.replace(/^[a-zA-Z_]\s*=\s*/, '');
@@ -296,7 +318,10 @@ window.AIEngine = {
       };
     }
 
-    const answer = result.text || '';
+    let answer = result.text || '';
+    if (answer.includes('<think>')) {
+      answer = answer.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    }
     const validLetters = new Set();
     for (let i = 0; i < options.length; i++) validLetters.add(String.fromCharCode(65 + i));
     const matchedLetters = new Set();

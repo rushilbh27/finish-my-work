@@ -1,5 +1,219 @@
-// Precision Universal Solver for Any LMS, Quiz, and Exam Platform
 window.UniversalSolver = {
+
+  // ── 0. Ground-Truth Answer Key from Page State / Inertia.js ──
+  getVerifiedPageAnswers() {
+    const map = new Map();
+    try {
+      // 1. Inertia.js (QuizPractice.space and Laravel + Inertia SPAs)
+      const appEl = document.querySelector('#app[data-page], [data-page]');
+      if (appEl) {
+        const raw = appEl.getAttribute('data-page');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          const qp = parsed?.props?.question_paper || parsed?.props?.questionPaper;
+          const questions = qp?.questions || parsed?.props?.questions;
+          if (Array.isArray(questions)) {
+            questions.forEach((q, idx) => {
+              const domId = `question${idx + 1}`;
+              const longId = q.question_num_long ? String(q.question_num_long) : null;
+              const qType = (q.question_type || q.type || '').toUpperCase();
+
+              let ansObj = null;
+              const hasOptions = Array.isArray(q.options) && q.options.length > 0;
+
+              if (qType === 'MCQ' || qType === 'MSQ' || hasOptions) {
+                const correctIndices = [];
+                const correctIds = [];
+                const correctNumbers = [];
+                (q.options || []).forEach((opt, oIdx) => {
+                  if (opt.is_correct || opt.correct || opt.answer) {
+                    correctIndices.push(oIdx);
+                    if (opt.id) correctIds.push(String(opt.id));
+                    if (opt.option_number) correctNumbers.push(String(opt.option_number));
+                  }
+                });
+                if (correctIndices.length > 0) {
+                  const letters = correctIndices.map(i => String.fromCharCode(65 + i));
+                  ansObj = {
+                    type: (qType === 'MSQ' || correctIndices.length > 1) ? 'multichoice' : 'mcq',
+                    letters: letters,
+                    indices: correctIndices,
+                    optionIds: correctIds,
+                    optionNumbers: correctNumbers
+                  };
+                }
+              } else if (q.value_start !== null && q.value_start !== undefined) {
+                ansObj = {
+                  type: 'text',
+                  value: String(q.value_start).trim(),
+                  valueEnd: q.value_end !== null && q.value_end !== undefined ? String(q.value_end).trim() : null
+                };
+              }
+
+              if (ansObj) {
+                map.set(domId, ansObj);
+                map.set(domId.toLowerCase(), ansObj);
+                if (longId) map.set(longId, ansObj);
+                if (q.id) map.set(String(q.id), ansObj);
+              }
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('[Autopilot] Error reading page verified answers:', e);
+    }
+    return map;
+  },
+
+  getVerifiedAnswer(q) {
+    if (!q) return null;
+    const map = this.getVerifiedPageAnswers();
+    if (!map || map.size === 0) return null;
+
+    if (q.longId && map.has(q.longId)) return map.get(q.longId);
+    if (q.domId && map.has(q.domId)) return map.get(q.domId);
+    if (q.id && map.has(q.id)) return map.get(q.id);
+    if (q.container?.id && map.has(q.container.id)) return map.get(q.container.id);
+    if (q.questionNum !== undefined && map.has(`question${q.questionNum}`)) return map.get(`question${q.questionNum}`);
+
+    return null;
+  },
+
+  async applyVerifiedAnswer(q, verified, updateStatus) {
+    if (!verified) return { success: false };
+
+    // 1. Short Answer / NAT / Text
+    if (verified.type === 'text' && q.textInput) {
+      const val = verified.value;
+      q.textInput.focus();
+      const proto = q.textInput.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+      const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+      if (nativeSetter) {
+        nativeSetter.call(q.textInput, val);
+      } else {
+        q.textInput.value = val;
+      }
+      q.textInput.dispatchEvent(new Event('input', { bubbles: true }));
+      q.textInput.dispatchEvent(new Event('change', { bubbles: true }));
+      q.textInput.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true }));
+      q.textInput.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+      q.textInput.blur();
+      q.isAnswered = true;
+
+      q.container.style.transition = 'box-shadow 0.3s ease';
+      q.container.style.boxShadow = '0 0 16px rgba(16, 185, 129, 0.4)';
+      setTimeout(() => { if (q.container) q.container.style.boxShadow = ''; }, 2000);
+
+      updateStatus?.(`Verified Answered: ${val}`);
+      return { success: true, answer: val, verified: true };
+    }
+
+    // 2. MCQ (Single Select)
+    if (verified.type === 'mcq' && q.options && q.options.length > 0) {
+      let target = null;
+
+      if (verified.optionIds?.length > 0) {
+        target = q.options.find(o => 
+          verified.optionIds.includes(o.id) || 
+          verified.optionIds.includes(o.element?.value) || 
+          verified.optionIds.includes(o.element?.id?.replace(/^r[12]/, ''))
+        );
+      }
+      if (!target && verified.optionNumbers?.length > 0) {
+        target = q.options.find(o => verified.optionNumbers.includes(o.element?.getAttribute('title')));
+      }
+      if (!target && verified.indices?.length > 0) {
+        target = q.options[verified.indices[0]];
+      }
+      if (!target && verified.letters?.length > 0) {
+        target = q.options.find(o => o.letter?.toUpperCase() === verified.letters[0]);
+      }
+
+      if (target) {
+        const radioBtn = target.element;
+        radioBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        radioBtn.focus();
+        radioBtn.click();
+        radioBtn.setAttribute('aria-checked', 'true');
+        radioBtn.setAttribute('data-state', 'checked');
+
+        ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach(evt => {
+          radioBtn.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window }));
+        });
+
+        const label = (radioBtn.id ? document.querySelector(`label[for="${radioBtn.id}"]`) : null) || target.labelEl;
+        if (label && label !== radioBtn) {
+          label.click();
+        }
+
+        if (radioBtn.tagName === 'INPUT') {
+          radioBtn.checked = true;
+          radioBtn.dispatchEvent(new Event('input', { bubbles: true }));
+          radioBtn.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+
+        q.isAnswered = true;
+        q.container.style.transition = 'box-shadow 0.3s ease';
+        q.container.style.boxShadow = '0 0 16px rgba(37, 99, 235, 0.4)';
+        setTimeout(() => { if (q.container) q.container.style.boxShadow = ''; }, 2000);
+
+        updateStatus?.(`Verified Selected (${target.letter}): ${target.text.slice(0, 25) || 'Option ' + target.letter}`);
+        return { success: true, answer: target.letter, verified: true };
+      }
+    }
+
+    // 3. MSQ / Multi-Choice (Checkboxes)
+    if (verified.type === 'multichoice' && q.options && q.options.length > 0) {
+      let checkedCount = 0;
+      q.options.forEach((opt, idx) => {
+        const letter = String.fromCharCode(65 + idx);
+        const shouldBeChecked = 
+          (verified.optionIds?.length && (verified.optionIds.includes(opt.id) || verified.optionIds.includes(opt.element?.value) || verified.optionIds.includes(opt.element?.id?.replace(/^r[12]/, '')))) ||
+          (verified.optionNumbers?.length && verified.optionNumbers.includes(opt.element?.getAttribute('title'))) ||
+          (verified.indices?.length && verified.indices.includes(idx)) ||
+          (verified.letters?.length && (verified.letters.includes(letter) || verified.letters.includes(opt.letter?.toUpperCase())));
+
+        const inputEl = opt.element && opt.element.tagName === 'INPUT' ? opt.element : opt.element?.querySelector('input[type="checkbox"]');
+        const roleCheckbox = opt.element?.getAttribute('role') === 'checkbox' ? opt.element : opt.element?.querySelector('[role="checkbox"]');
+
+        if (inputEl) {
+          if (inputEl.checked !== !!shouldBeChecked) {
+            inputEl.focus();
+            inputEl.click();
+            if (inputEl.checked !== !!shouldBeChecked) {
+              inputEl.checked = !!shouldBeChecked;
+              inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+              inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+          }
+          if (shouldBeChecked) checkedCount++;
+        } else if (roleCheckbox) {
+          const isAriaChecked = roleCheckbox.getAttribute('aria-checked') === 'true' || roleCheckbox.getAttribute('data-state') === 'checked';
+          if (isAriaChecked !== !!shouldBeChecked) {
+            roleCheckbox.focus();
+            roleCheckbox.click();
+            roleCheckbox.setAttribute('aria-checked', shouldBeChecked ? 'true' : 'false');
+            roleCheckbox.setAttribute('data-state', shouldBeChecked ? 'checked' : 'unchecked');
+            ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach(evt => {
+              roleCheckbox.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window }));
+            });
+          }
+          if (shouldBeChecked) checkedCount++;
+        }
+      });
+
+      q.isAnswered = true;
+      q.container.style.transition = 'box-shadow 0.3s ease';
+      q.container.style.boxShadow = '0 0 16px rgba(37, 99, 235, 0.4)';
+      setTimeout(() => { if (q.container) q.container.style.boxShadow = ''; }, 2000);
+
+      updateStatus?.(`Verified Checked (${verified.letters.join(', ')}): ${checkedCount} options`);
+      return { success: true, answer: verified.letters.join(', '), verified: true };
+    }
+
+    return { success: false, message: 'Could not apply verified answer' };
+  },
 
   // Detect all questions on the current page across multiple LMS platforms
   detectAllQuestions() {
@@ -25,18 +239,24 @@ window.UniversalSolver = {
 
     if (headingElements.length > 0) {
       headingElements.forEach(h => {
+        const direct = h.closest('div[id^="question"], .question-container, .question-card, [class*="question"]:not([class*="palette"]):not([class*="nav"])');
+        if (direct && direct.querySelector('input, textarea, select, [role="radio"], [role="checkbox"], mat-radio-button, mat-checkbox, mat-form-field')) {
+          if (!containers.includes(direct)) containers.push(direct);
+          return;
+        }
+
         let cur = h.parentElement;
         let best = null;
         while (cur && cur !== document.body) {
           if (cur.id === 'peslms-autopilot-root') break;
-          const hasInputs = cur.querySelector('input, textarea, select, [role="radio"], [role="checkbox"], mat-radio-button, mat-form-field');
+          const hasInputs = cur.querySelector('input, textarea, select, [role="radio"], [role="checkbox"], mat-radio-button, mat-checkbox, mat-form-field');
           if (hasInputs) {
-            best = cur;
             let count = 0;
             cur.querySelectorAll('h1, h2, h3, h4, h5, div, span, p, b, strong').forEach(sh => {
               if (/^Question\s+\d+\s*[:\.]/i.test((sh.innerText || '').trim())) count++;
             });
             if (count > 1) break;
+            best = cur;
           }
           cur = cur.parentElement;
         }
@@ -84,7 +304,23 @@ window.UniversalSolver = {
         }
       }
 
-      for (const q of containers) {
+      for (let cIdx = 0; cIdx < containers.length; cIdx++) {
+        const q = containers[cIdx];
+
+        let qNum = cIdx + 1;
+        let qLongId = null;
+        let domId = q.id || `question${cIdx + 1}`;
+
+        const idMatch = (q.innerText || '').match(/Question\s+(\d+)\s*(?:[:\.]\s*(\d+))?/i);
+        if (idMatch) {
+          if (idMatch[1]) qNum = parseInt(idMatch[1]);
+          if (idMatch[2]) qLongId = idMatch[2];
+        }
+        if (q.id && /^question(\d+)$/i.test(q.id)) {
+          qNum = parseInt(q.id.match(/^question(\d+)$/i)[1]);
+          domId = q.id;
+        }
+
         // Extract mathematical formatting (LaTeX / MathML / KaTeX / superscripts)
         const clone = q.cloneNode(true);
         clone.querySelectorAll('sup').forEach(el => { el.textContent = `^${el.textContent}`; });
@@ -136,8 +372,27 @@ window.UniversalSolver = {
         if (uniqueRadios.length >= 2) {
           const options = uniqueRadios.map((r, i) => {
             const innerInput = r.tagName === 'INPUT' ? r : r.querySelector('input[type="radio"]');
-            const labelEl = r.closest('label') || r.parentElement;
-            let labelText = (r.innerText || labelEl?.innerText || r.getAttribute('aria-label') || '').trim();
+            const labelEl = (r.id ? document.querySelector(`label[for="${r.id}"]`) : null) || r.closest('label') || r.parentElement;
+
+            let labelText = '';
+            if (labelEl) {
+              const cloneLbl = labelEl.cloneNode(true);
+              cloneLbl.querySelectorAll('sup').forEach(el => { el.textContent = `^${el.textContent}`; });
+              cloneLbl.querySelectorAll('sub').forEach(el => { el.textContent = `_${el.textContent}`; });
+              cloneLbl.querySelectorAll('annotation[encoding*="tex"], annotation[encoding*="TeX"]').forEach(ann => {
+                const parent = ann.closest('mjx-container, .katex, math');
+                if (parent) parent.replaceWith(document.createTextNode(` $${ann.textContent}$ `));
+              });
+              cloneLbl.querySelectorAll('img').forEach(img => {
+                const alt = img.getAttribute('alt') || img.getAttribute('title') || '';
+                if (alt) img.replaceWith(document.createTextNode(` ${alt} `));
+              });
+              labelText = (cloneLbl.innerText || '').trim();
+            }
+            if (!labelText) {
+              labelText = (r.innerText || r.getAttribute('aria-label') || '').trim();
+            }
+
             const letterMatch = labelText.match(/^([A-D])[\.\)\:\-]\s*/i);
             const letter = letterMatch ? letterMatch[1].toUpperCase() : String.fromCharCode(65 + i);
             const cleanText = labelText.replace(/^[A-D][\.\)\:\-]\s*/i, '').trim();
@@ -145,10 +400,15 @@ window.UniversalSolver = {
             const isChecked = (innerInput && innerInput.checked) || 
                               r.classList.contains('mat-mdc-radio-checked') || 
                               r.classList.contains('mat-radio-checked') ||
-                              r.getAttribute('aria-checked') === 'true';
+                              r.getAttribute('aria-checked') === 'true' ||
+                              r.getAttribute('data-state') === 'checked';
+
+            const optId = r.id?.replace(/^r[12]/, '') || r.getAttribute('value') || innerInput?.value || null;
 
             return {
-              element: innerInput || r,
+              id: optId,
+              element: r,
+              innerInput: innerInput,
               labelEl: labelEl || r,
               letter: letter,
               text: cleanText,
@@ -158,6 +418,11 @@ window.UniversalSolver = {
 
           list.push({
             container: q,
+            id: domId,
+            domId: domId,
+            questionNum: qNum,
+            longId: qLongId,
+            index: cIdx,
             type: 'mcq',
             text: fullText,
             image: image,
@@ -181,8 +446,27 @@ window.UniversalSolver = {
         if (uniqueCheckboxes.length >= 2) {
           const options = uniqueCheckboxes.map((c, i) => {
             const innerInput = c.tagName === 'INPUT' ? c : c.querySelector('input[type="checkbox"]');
-            const labelEl = c.closest('label') || c.parentElement;
-            let labelText = (c.innerText || labelEl?.innerText || c.getAttribute('aria-label') || '').trim();
+            const labelEl = (c.id ? document.querySelector(`label[for="${c.id}"]`) : null) || (innerInput?.id ? document.querySelector(`label[for="${innerInput.id}"]`) : null) || c.closest('label') || c.parentElement;
+
+            let labelText = '';
+            if (labelEl) {
+              const cloneLbl = labelEl.cloneNode(true);
+              cloneLbl.querySelectorAll('sup').forEach(el => { el.textContent = `^${el.textContent}`; });
+              cloneLbl.querySelectorAll('sub').forEach(el => { el.textContent = `_${el.textContent}`; });
+              cloneLbl.querySelectorAll('annotation[encoding*="tex"], annotation[encoding*="TeX"]').forEach(ann => {
+                const parent = ann.closest('mjx-container, .katex, math');
+                if (parent) parent.replaceWith(document.createTextNode(` $${ann.textContent}$ `));
+              });
+              cloneLbl.querySelectorAll('img').forEach(img => {
+                const alt = img.getAttribute('alt') || img.getAttribute('title') || '';
+                if (alt) img.replaceWith(document.createTextNode(` ${alt} `));
+              });
+              labelText = (cloneLbl.innerText || '').trim();
+            }
+            if (!labelText) {
+              labelText = (c.innerText || c.getAttribute('aria-label') || '').trim();
+            }
+
             const letterMatch = labelText.match(/^([A-D])[\.\)\:\-]\s*/i);
             const letter = letterMatch ? letterMatch[1].toUpperCase() : String.fromCharCode(65 + i);
             const cleanText = labelText.replace(/^[A-D][\.\)\:\-]\s*/i, '').trim();
@@ -190,9 +474,13 @@ window.UniversalSolver = {
             const isChecked = (innerInput && innerInput.checked) || 
                               c.classList.contains('mat-mdc-checkbox-checked') || 
                               c.classList.contains('mat-checkbox-checked') ||
-                              c.getAttribute('aria-checked') === 'true';
+                              c.getAttribute('aria-checked') === 'true' ||
+                              c.getAttribute('data-state') === 'checked';
+
+            const optId = c.id?.replace(/^r[12]/, '') || innerInput?.id?.replace(/^r[12]/, '') || innerInput?.value || c.getAttribute('value') || null;
 
             return {
+              id: optId,
               element: innerInput || c,
               labelEl: labelEl || c,
               letter: letter,
@@ -203,6 +491,11 @@ window.UniversalSolver = {
 
           list.push({
             container: q,
+            id: domId,
+            domId: domId,
+            questionNum: qNum,
+            longId: qLongId,
+            index: cIdx,
             type: 'multichoice',
             text: fullText,
             image: image,
@@ -227,6 +520,11 @@ window.UniversalSolver = {
 
           list.push({
             container: q,
+            id: domId,
+            domId: domId,
+            questionNum: qNum,
+            longId: qLongId,
+            index: cIdx,
             type: 'text',
             isNAT: isNAT,
             text: fullText,
@@ -1163,9 +1461,18 @@ window.UniversalSolver = {
 
   // Solves a specific question item across all question types
   async solveQuestionItem(q, updateStatus) {
-    if (!q || !q.text) return { success: false, message: 'Invalid question' };
+    if (!q) return { success: false, message: 'Invalid question' };
 
     q.container?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    // STEP 0: Check for verified answer from Inertia data-page or LMS page state
+    const verified = this.getVerifiedAnswer(q);
+    if (verified) {
+      updateStatus?.(`Applying verified answer...`);
+      return await this.applyVerifiedAnswer(q, verified, updateStatus);
+    }
+
+    if (!q.text) return { success: false, message: 'Question text is empty' };
     updateStatus?.(`Thinking: "${q.text.slice(0, 35)}..."`);
 
     // ── 1. Drag and Drop Words into Text (Moodle ddwtos / Blanks) ──
@@ -1488,40 +1795,31 @@ window.UniversalSolver = {
       q.options.forEach((opt, idx) => {
         const letter = String.fromCharCode(65 + idx);
         const shouldBeChecked = aiRes.letters.includes(letter) || aiRes.letters.includes(opt.letter?.toUpperCase());
-        const isCurrentlyChecked = opt.element ? opt.element.checked : false;
 
-        if (shouldBeChecked && !isCurrentlyChecked) {
-          const clickEl = opt.labelEl || opt.element;
-          const matHost = clickEl.closest('mat-checkbox, .mat-mdc-checkbox') || clickEl;
-          if (matHost && matHost !== clickEl) matHost.click();
-          clickEl.click();
-          ['pointerdown', 'mousedown', 'click', 'mouseup'].forEach(evt => {
-            clickEl.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true }));
-            if (matHost && matHost !== clickEl) matHost.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true }));
-          });
-          if (opt.element) {
-            opt.element.checked = true;
-            opt.element.dispatchEvent(new Event('input', { bubbles: true }));
-            opt.element.dispatchEvent(new Event('change', { bubbles: true }));
+        const inputEl = opt.element && opt.element.tagName === 'INPUT' ? opt.element : opt.element?.querySelector('input[type="checkbox"]');
+        const roleCheckbox = opt.element?.getAttribute('role') === 'checkbox' ? opt.element : opt.element?.querySelector('[role="checkbox"]');
+
+        if (inputEl) {
+          if (inputEl.checked !== shouldBeChecked) {
+            inputEl.focus();
+            inputEl.click();
+            if (inputEl.checked !== shouldBeChecked) {
+              inputEl.checked = shouldBeChecked;
+              inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+              inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+            }
           }
-          checkedCount++;
-        } else if (shouldBeChecked && isCurrentlyChecked) {
-          checkedCount++;
-        } else if (!shouldBeChecked && isCurrentlyChecked) {
-          // Uncheck options that should NOT be selected
-          const clickEl = opt.labelEl || opt.element;
-          const matHost = clickEl.closest('mat-checkbox, .mat-mdc-checkbox') || clickEl;
-          if (matHost && matHost !== clickEl) matHost.click();
-          clickEl.click();
-          ['pointerdown', 'mousedown', 'click', 'mouseup'].forEach(evt => {
-            clickEl.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true }));
-            if (matHost && matHost !== clickEl) matHost.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true }));
-          });
-          if (opt.element) {
-            opt.element.checked = false;
-            opt.element.dispatchEvent(new Event('input', { bubbles: true }));
-            opt.element.dispatchEvent(new Event('change', { bubbles: true }));
+          if (shouldBeChecked) checkedCount++;
+        } else if (roleCheckbox) {
+          const isAriaChecked = roleCheckbox.getAttribute('aria-checked') === 'true' || roleCheckbox.getAttribute('data-state') === 'checked';
+          if (isAriaChecked !== shouldBeChecked) {
+            roleCheckbox.focus();
+            roleCheckbox.click();
+            ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach(evt => {
+              roleCheckbox.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window }));
+            });
           }
+          if (shouldBeChecked) checkedCount++;
         }
       });
 
@@ -1572,22 +1870,24 @@ window.UniversalSolver = {
         return { success: false, message: `Could not match option ${letter}` };
       }
 
-      const clickEl = target.labelEl || target.element;
-      clickEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      
-      const matHost = clickEl.closest('mat-radio-button, .mat-mdc-radio-button, [role="radio"]') || clickEl;
-      if (matHost && matHost !== clickEl) matHost.click();
-      clickEl.click();
+      const radioBtn = target.element;
+      radioBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      radioBtn.focus();
+      radioBtn.click();
 
-      ['pointerdown', 'mousedown', 'click', 'mouseup'].forEach(evt => {
-        clickEl.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true }));
-        if (matHost && matHost !== clickEl) matHost.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true }));
+      ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach(evt => {
+        radioBtn.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window }));
       });
 
-      if (target.element) {
-        target.element.checked = true;
-        target.element.dispatchEvent(new Event('input', { bubbles: true }));
-        target.element.dispatchEvent(new Event('change', { bubbles: true }));
+      const label = (radioBtn.id ? document.querySelector(`label[for="${radioBtn.id}"]`) : null) || target.labelEl;
+      if (label && label !== radioBtn) {
+        label.click();
+      }
+
+      if (radioBtn.tagName === 'INPUT') {
+        radioBtn.checked = true;
+        radioBtn.dispatchEvent(new Event('input', { bubbles: true }));
+        radioBtn.dispatchEvent(new Event('change', { bubbles: true }));
       }
       q.isAnswered = true;
 
@@ -1719,6 +2019,12 @@ window.UniversalSolver = {
           } else if (existingVal && /^[-+]?[0-9]+(?:\.[0-9]+)?$/.test(existingVal)) {
             // If AI returned non-numeric, retain existing valid numeric answer
             ans = existingVal;
+          }
+
+          // If text was empty/placeholder and model returned "0" due to lack of vision, reject dummy 0
+          if (ans === '0' && q.text && q.text.includes('problem statement is displayed in the attached image')) {
+            updateStatus?.('Vision AI needed for diagram question (use Gemini or Vision model)');
+            return { success: false, message: 'Image-only question requires Vision AI' };
           }
         }
 
