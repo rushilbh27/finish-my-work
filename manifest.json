@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Finish My Work",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "description": "Universal autonomous assignment and quiz solver with 4 agent modes and multi-engine AI (Groq, Gemini, OpenRouter, Free).",
   "icons": {
     "16": "icons/icon16.png",

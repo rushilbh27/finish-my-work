@@ -27,10 +27,16 @@ const server = http.createServer((req, res) => {
     }
   }
 
-  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+  // Serve mock CSS
+  if (path.endsWith('.css')) {
+    res.writeHead(200, { 'Content-Type': 'text/css' });
+    res.end('/* mock styles */');
+    return;
+  }
 
   // ── 1. Dashboard (All Courses View) ──
   if (path === '/' || path === '/my/') {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
     res.end(`
       <!DOCTYPE html>
       <html>
@@ -369,7 +375,116 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  res.writeHead(404);
+  // ── 7. IITM Online Degree Portal / Angular Material Route ──
+  if (path === '/courses/iitm-assessment') {
+    res.end(`
+      <!DOCTYPE html>
+      <html lang="en" data-theme="dark">
+      <head>
+        <title>Courses :: IITM Study - Week 3 Graded Assignment 3</title>
+        <link rel="stylesheet" href="assets/css/questions.css">
+        <style>
+          body { font-family: sans-serif; background: #121212; color: #fff; margin: 0; padding: 20px; }
+          .app-shell { display: flex; flex-direction: column; gap: 20px; }
+          .top-bar { display: flex; justify-content: space-between; align-items: center; }
+          .question-nav { display: flex; gap: 8px; }
+          .circle-btn { width: 32px; height: 32px; border-radius: 50%; border: 1px solid #444; background: #222; color: #fff; cursor: pointer; }
+          .circle-btn.active { border-color: #3b82f6; background: #1e3a8a; }
+          .container { display: flex; gap: 20px; }
+          .left-col { flex: 1; background: #1e1e1e; padding: 20px; border-radius: 8px; }
+          .right-col { flex: 1.2; background: #1e1e1e; padding: 20px; border-radius: 8px; }
+          .options { display: flex; flex-direction: column; gap: 12px; margin-top: 15px; }
+          .mat-mdc-radio-button { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 8px; border-radius: 4px; border: 1px solid #333; }
+          .nav-controls { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+          button { padding: 8px 16px; border-radius: 4px; cursor: pointer; }
+          .submit-btn { background: #10b981; color: #fff; border: none; font-weight: bold; }
+          .next-btn { background: #3b82f6; color: #fff; border: none; }
+        </style>
+      </head>
+      <body class="mat-typography">
+        <app-root ng-version="18.2.14">
+          <div class="app-shell">
+            <div class="top-bar">
+              <div class="question-nav palette">
+                <button class="circle-btn active" aria-current="true">1</button>
+                <button class="circle-btn">2</button>
+                <button class="circle-btn">3</button>
+              </div>
+              <button class="mat-mdc-button submit-btn" onclick="submitAssessment()">Submit Assessment</button>
+            </div>
+
+            <div class="container">
+              <!-- Left Column: Common Information -->
+              <div class="left-col common-data">
+                <h3>Common Information</h3>
+                <p>The information below is common to Questions 1 to 13</p>
+                <p>There are some questions which have functions with discrete valued domains. For simplicity, we treat them as continuous functions.</p>
+                <p>For NAT type question, enter only one right answer, even if you get multiple answers for that particular question.</p>
+                <p>Notations: R = Set of real numbers Q = Set of rational numbers, Z = Set of integers, N = Set of natural numbers.</p>
+              </div>
+
+              <!-- Right Column: Question 1 -->
+              <div class="right-col">
+                <app-question class="question-card">
+                  <div class="q-header">Question 1 / 17 <span class="badge">• 1 mark</span> <button class="flag-btn">Flag for review</button></div>
+                  <div class="question-text">
+                    Find out the points where the curve y = 4x<sup>2</sup> + x and the straight line y = 2x - 3 intersect with each other.
+                  </div>
+                  <div class="options">
+                    <h4>Options</h4>
+                    <mat-radio-group role="radiogroup">
+                      <mat-radio-button class="mat-mdc-radio-button">
+                        <input type="radio" name="opts" id="optA">
+                        <label for="optA">A. (3/8, 0) and (3/8, 21/2).</label>
+                      </mat-radio-button>
+                      <mat-radio-button class="mat-mdc-radio-button">
+                        <input type="radio" name="opts" id="optB">
+                        <label for="optB">B. Only at the origin.</label>
+                      </mat-radio-button>
+                      <mat-radio-button class="mat-mdc-radio-button">
+                        <input type="radio" name="opts" id="optC">
+                        <label for="optC">C. The curve and the straight line do not intersect.</label>
+                      </mat-radio-button>
+                      <mat-radio-button class="mat-mdc-radio-button">
+                        <input type="radio" name="opts" id="optD">
+                        <label for="optD">D. (1, -1) and (1, 5).</label>
+                      </mat-radio-button>
+                    </mat-radio-group>
+                    <a href="#" class="clear-selection" style="color: #888; font-size: 12px; margin-top: 8px;">Clear Selection</a>
+                  </div>
+                </app-question>
+
+                <div class="nav-controls">
+                  <span>Use arrows ← and → to navigate</span>
+                  <button class="mat-button prev-btn">← Previous</button>
+                  <button class="mat-button next-btn" onclick="nextQuestion()">Next →</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </app-root>
+
+        <script>
+          let submitted = false;
+          function submitAssessment() {
+            submitted = true;
+            document.body.innerHTML = '<h1>Assessment Submitted</h1><p class="state">Complete</p>';
+          }
+          function nextQuestion() {
+            document.querySelector('.question-text').innerText = 'Question 2: What is the derivative of x^2?';
+            document.querySelector('.circle-btn.active').classList.remove('active');
+            document.querySelectorAll('.circle-btn')[1].classList.add('active');
+          }
+        </script>
+      </body>
+      </html>
+    `);
+    return;
+  }
+
+  if (!res.headersSent) {
+    res.writeHead(404);
+  }
   res.end('Not Found');
 });
 

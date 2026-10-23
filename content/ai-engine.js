@@ -194,6 +194,38 @@ window.AIEngine = {
     return res;
   },
 
+  // Numerical Answer Type (NAT) solver for STEM and math problems
+  async solveNATAnswer(questionText, imgElement = null) {
+    let imageBase64 = null;
+    if (imgElement) {
+      imageBase64 = await this.imageToBase64(imgElement);
+    }
+
+    const prompt = `CRITICAL TASK: NUMERICAL ANSWER TYPE (NAT) QUESTION.\n\n` +
+      `Question: "${questionText}"\n\n` +
+      (imageBase64 ? `Note: An image or diagram is attached. Inspect it carefully.\n\n` : '') +
+      `INSTRUCTIONS:\n` +
+      `1. Compute the exact mathematical or numerical value required by the question.\n` +
+      `2. Respond ONLY with the final numerical value (e.g., "4", "-2.5", "0.75", "12").\n` +
+      `3. Do NOT include any variable names (like "x = "), units, words, fractions (convert to decimal if required), or explanations. Output ONLY the raw number directly.`;
+
+    const result = await this.generateAnswer(
+      prompt,
+      imageBase64,
+      'You are an expert academic STEM exam solver. Output ONLY the raw final numerical value (e.g. 4.5 or -3), nothing else.'
+    );
+
+    if (result?.success && result.text) {
+      let clean = result.text.trim().replace(/^["'`]+|["'`]+$/g, '');
+      const numMatch = clean.match(/[-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?/);
+      if (numMatch) {
+        return { success: true, text: numMatch[0], warningNotice: result.warningNotice };
+      }
+      return { success: true, text: clean, warningNotice: result.warningNotice };
+    }
+    return result;
+  },
+
   // Multi-choice solver (Select all that apply / checkboxes)
   async solveMultiChoice(questionText, options, imgElement = null) {
     let imageBase64 = null;

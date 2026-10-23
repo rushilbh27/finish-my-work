@@ -90,6 +90,8 @@ async function runMonitoredTests() {
             cb({ success: true, text: 'B' });
           } else if (p.includes('vegetarian')) {
             cb({ success: true, text: 'A' });
+          } else if (p.includes('curve') && (p.includes('straight line') || p.includes('intersect'))) {
+            cb({ success: true, text: 'C' });
           } else {
             cb({ success: true, text: 'A' });
           }
@@ -377,6 +379,67 @@ async function runMonitoredTests() {
     if (!isPaginatedComplete) throw new Error('Paginated quiz did not complete submission');
     console.log('🎉 PAGINATED QUIZ (1 QUESTION PER PAGE): ADVANCED ACROSS ALL PAGES AND SUBMITTED 100%!');
 
+    // ── TEST 6: IITM Online Degree Portal (seek.onlinedegree.iitm.ac.in) ──
+    console.log('\n[TEST 6] Testing IITM Online Degree Portal Assessment (Angular Material 18)...');
+    await page.evaluate(() => localStorage.clear());
+    await page.goto('http://localhost:8089/courses/iitm-assessment');
+    await page.waitForTimeout(400);
+
+    const iitmValidation = await page.evaluate(async () => {
+      const questions = window.UniversalSolver.detectAllQuestions();
+      if (!questions || questions.length !== 1) {
+        return { success: false, error: `Expected 1 question, got ${questions ? questions.length : 0}` };
+      }
+
+      const q = questions[0];
+      const hasMath = q.text.includes('4x^2 + x');
+      const hasCommon = q.text.includes('The information below is common to Questions 1 to 13');
+      const hasClearSelection = q.options.some(o => o.text.toLowerCase().includes('clear selection'));
+      const optionsCount = q.options.length;
+      const letters = q.options.map(o => o.letter).join('');
+
+      // Test solving question 1: curve 4x^2 + x and line 2x - 3
+      // b^2 - 4ac = 1 - 48 = -47 < 0 -> line and curve do not intersect -> Option C!
+      await window.UniversalSolver.solveQuestionItem(q, (m) => console.log('[IITM-SOLVE]', m));
+
+      const optC = q.options[2];
+      const isCChecked = optC.element ? optC.element.checked : false;
+
+      const nextBtn = window.UniversalSolver.findNextButton();
+      const paletteBtn = window.UniversalSolver.findNextPaletteButton();
+      const submitBtn = window.UniversalSolver.findSubmitButton();
+
+      return {
+        success: true,
+        type: q.type,
+        isAngularMaterial: q.isAngularMaterial,
+        hasMath,
+        hasCommon,
+        hasClearSelection,
+        optionsCount,
+        letters,
+        isCChecked,
+        nextBtnText: nextBtn?.innerText?.trim(),
+        paletteBtnText: paletteBtn?.innerText?.trim(),
+        submitBtnText: submitBtn?.innerText?.trim()
+      };
+    });
+
+    console.log('✓ IITM question detected type:', iitmValidation.type);
+    console.log('✓ Angular Material flag:', iitmValidation.isAngularMaterial);
+    console.log('✓ Math formula 4x^2 + x formatted:', iitmValidation.hasMath);
+    console.log('✓ Left-pane common context included:', iitmValidation.hasCommon);
+    console.log('✓ Options count (A-D, Clear Selection excluded):', iitmValidation.optionsCount, `[${iitmValidation.letters}]`);
+    console.log('✓ Option C (Do not intersect) solved & selected:', iitmValidation.isCChecked);
+    console.log('✓ Navigation Next Button found:', `"${iitmValidation.nextBtnText}"`);
+    console.log('✓ Top Question Palette advance button found:', `"${iitmValidation.paletteBtnText}"`);
+    console.log('✓ Submit Assessment button found:', `"${iitmValidation.submitBtnText}"`);
+
+    if (!iitmValidation.success || !iitmValidation.hasMath || !iitmValidation.hasCommon || iitmValidation.hasClearSelection || !iitmValidation.isCChecked) {
+      throw new Error(`IITM validation failed: ${JSON.stringify(iitmValidation)}`);
+    }
+    console.log('🎉 IITM ONLINE DEGREE ASSESSMENT: 100% COMPATIBLE & SOLVED!');
+
     console.log('\n══════════════════════════════════════════════════════════════');
     console.log('✅ ALL MONITORED TESTS PASSED FLAWLESSLY! 100% OPERATIONAL');
     console.log('   - Question 4 Icon Matching: 5/5 Matches Correct');
@@ -386,6 +449,7 @@ async function runMonitoredTests() {
     console.log('   - Mode 3 (Course Batch): All Quizzes Solved End-to-End');
     console.log('   - Mode 4 (All Courses): Multi-Course Sweep Operational');
     console.log('   - Paginated Quizzes: 1-Q-Per-Page Next Flow 100% Solved & Advanced');
+    console.log('   - IITM Online Degree (seek.onlinedegree.iitm.ac.in): 100% Solved');
     console.log('══════════════════════════════════════════════════════════════\n');
 
   } catch (err) {
