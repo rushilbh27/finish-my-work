@@ -27,9 +27,7 @@ Built with a sleek neo-brutalist technical interface, multi-engine AI intelligen
 ## 📸 Visual Showcase
 
 <p align="center">
-  <img src="assets/popup-main.png" alt="Finish My Work Main Popup" width="48%" />
-  &nbsp;
-  <img src="assets/popup-settings.png" alt="Finish My Work Provider Settings" width="48%" />
+  <img src="assets/popup-main.png" alt="Finish My Work Extension UI" width="350px" />
 </p>
 
 <p align="center">
@@ -101,11 +99,7 @@ Finish My Work never leaves you stranded with a broken rate limit or expired tri
 
 ---
 
-## 🧑‍💻 About the Project & Author
-
-**Finish My Work** was designed and engineered by **[Rushil Bhor](https://github.com/rushilbh27)**.
-
-> *"Students waste hundreds of hours every semester clicking through arbitrarily rate-limited quizzes, buggy flashcard widgets, and reading checkboxes that teach very little. Finish My Work was built to eliminate the mindless digital busywork so you can focus on building real projects, doing actual deep work, and learning what matters."*
+## ⭐ Star History & Support
 
 If this tool saved your grade, spared your sanity, or gave you back your weekends, please **drop a Star (★) on GitHub** — it helps more students discover it!
 
