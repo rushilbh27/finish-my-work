@@ -22,11 +22,11 @@
 
 ## ⚡ What is Finish My Work?
 
-**Finish My Work** is an open-source Chrome extension that autonomously solves assignments, quizzes, and assessments across university learning platforms.
+**Finish My Work** is an open-source Chrome extension that autonomously solves assignments, quizzes, and assessments across modern learning platforms.
 
 🌐 **Landing Page & Live Demo:** [rushilbh27.github.io/finish-my-work](https://rushilbh27.github.io/finish-my-work/)
 
-Whether your course runs on **Moodle**, **Canvas**, **Blackboard**, **Google Forms**, or the **IITM Online Degree Portal** (`seek.onlinedegree.iitm.ac.in`), Finish My Work detects on-screen questions, solves them using multi-engine AI (Groq, Gemini, Ollama), navigates between questions automatically, and submits when finished.
+Whether your course runs on **Moodle**, **Canvas**, **Blackboard**, **Google Forms**, or custom Single-Page Application (SPA) quiz portals, Finish My Work detects on-screen questions, solves them using multi-engine AI (Groq, Gemini, OpenRouter), navigates between questions automatically, and submits when finished.
 
 ---
 
