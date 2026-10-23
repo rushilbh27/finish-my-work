@@ -1,122 +1,103 @@
 <p align="center">
-  <img src="assets/banner.png" alt="Finish My Work Banner" width="100%" style="border-radius: 8px;" />
+  <a href="https://github.com/rushilbh27/finish-my-work">
+    <img src="assets/banner.png" alt="Finish My Work Banner" width="100%" />
+  </a>
 </p>
 
 <p align="center">
-  <strong>Universal Autonomous Assignment & Quiz Autopilot for Chrome</strong>
-</p>
-
-<p align="center">
-  <a href="https://github.com/rushilbh27/finish-my-work/stargazers"><img src="https://img.shields.io/github/stars/rushilbh27/finish-my-work?style=for-the-badge&color=2563eb" alt="GitHub Stars"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="MIT License"></a>
-  <img src="https://img.shields.io/badge/Chrome-Manifest_V3-success?style=for-the-badge&logo=googlechrome" alt="Manifest V3">
-  <img src="https://img.shields.io/badge/AI-Groq%20%7C%20Gemini%20%7C%20OpenRouter-orange?style=for-the-badge" alt="AI Engines">
-  <a href="https://github.com/rushilbh27/finish-my-work/pulls"><img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=for-the-badge" alt="PRs Welcome"></a>
+  <a href="https://github.com/rushilbh27/finish-my-work/stargazers">
+    <img src="https://img.shields.io/badge/%E2%AD%90%20STAR%20THIS%20REPO-If%20it%20saved%20your%20grades!-facc15?style=for-the-badge&labelColor=0f172a" alt="Star on GitHub" />
+  </a>
+  &nbsp;
+  <a href="https://github.com/rushilbh27/finish-my-work/stargazers">
+    <img src="https://img.shields.io/github/stars/rushilbh27/finish-my-work?style=for-the-badge&color=2563eb" alt="GitHub Stars" />
+  </a>
+  &nbsp;
+  <img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="MIT License" />
+  &nbsp;
+  <img src="https://img.shields.io/badge/Chrome-Extension-success?style=for-the-badge&logo=googlechrome" alt="Chrome Extension" />
 </p>
 
 ---
 
-## ⚡ Overview
+## ⚡ What is Finish My Work?
 
-**Finish My Work** is an open-source, high-speed autonomous Chrome extension that automates repetitive LMS homework, Moodle quizzes, TinyMCE brief answers, and interactive H5P modules with surgical precision.
+**Finish My Work** is a free Chrome extension that automatically solves school assignments, portal quizzes, essays, and flashcards in seconds.
 
-Built with a sleek neo-brutalist technical interface, multi-engine AI intelligence (**Groq**, **Gemini Vision**, **OpenRouter**, and a **Built-in Free Tier** with auto-pacing cooldowns), and **4 autonomous agent modes**, it turns hours of repetitive school portal clicks into a single shortcut press.
+Whether your school uses **Moodle**, **Canvas**, **Blackboard**, or **PES LMS**, Finish My Work reads the questions on your screen, fills in the correct answers, turns pages, and gets your homework done so you can focus on things you actually care about.
 
 ---
 
-## 📸 Visual Showcase
+## 📸 Extension Preview
 
 <p align="center">
-  <img src="assets/popup-main.png" alt="Finish My Work Extension UI" width="350px" />
+  <img src="assets/popup-main.png" alt="Finish My Work Extension UI" width="340px" />
 </p>
 
 <p align="center">
   <img src="assets/agent-modes.png" alt="4 Agent Autopilot Modes" width="94%" />
-  <br />
-  <em>Agent Mode Selector: Full descriptive context in the menu, clean compact labels when selected.</em>
 </p>
 
 ---
 
-## 🚀 The 4 Autonomous Agent Modes
+## 🚀 The 4 Autopilot Modes
 
-| Mode | Short Label | Description & Workflow |
+Pick how much control you want:
+
+| Mode | What it does | When to use it |
 | :--- | :--- | :--- |
-| **Mode 1** | **Draft Only** | **Solve, don't submit.** Solves all questions on the page, handles multi-page pagination, but halts safely before final submission so you can review answers with complete peace of mind. |
-| **Mode 2** | **Full Submit** | **Solve + submit quiz.** Solves every question, handles pagination, triggers the final submission button, bypasses Moodle double-confirmation modals, and stops once the "Response received" state is verified. |
-| **Mode 3** | **Course Batch** | **All assignments in course.** Sequentially crawls through all quizzes, modules, and reading materials in your active course, solving and marking them complete. |
-| **Mode 4** | **All Courses** | **Every assignment everywhere.** Full autonomous sweep across all enrolled courses on your portal dashboard. |
+| **01. Draft Only** | Solves every question and turns pages, but **stops before the final submit button**. | When you want to double-check the answers yourself before turning it in. |
+| **02. Full Submit** | Solves all questions, clicks final submit, confirms submission dialogs, and verifies you're done. | When you just want the quiz finished and turned in automatically. |
+| **03. Course Batch** | Automatically goes through all open quizzes and assignments across your current course. | Clearing an entire subject's backlog in one sitting. |
+| **04. All Courses** | Sweeps across all your enrolled courses on your portal dashboard. | End-of-semester speedrun. |
 
 ---
 
-## 🧠 Multi-Engine AI Architecture
+## 🤖 Works With Any AI (Or None at All!)
 
-Finish My Work never leaves you stranded with a broken rate limit or expired trial:
-
-- ✦ **Built-in Free Engine (Zero-Key)**: Works out of the box with zero API keys or configuration. Includes an automated countdown timer that paces requests through free-tier server cooldowns so no question is ever skipped.
-- ⚡ **Groq Cloud (Ultra-Fast 500+ T/s)**: Connect your free Groq key (`gsk_...`) for instant Llama 3.3 70B solving with zero wait times. Get one in 10 seconds at [console.groq.com](https://console.groq.com/keys).
-- 🔑 **Google Gemini (Vision AI)**: Connect your Gemini key from [Google AI Studio](https://aistudio.google.com/app/apikey). Capable of reading diagrams, circuit schematics, graphs, and chemistry formulas.
-- 🌐 **OpenRouter**: Access DeepSeek R1, Claude 3.5 Sonnet, or GPT-4o with your custom [OpenRouter](https://openrouter.ai/keys) key.
+- ✦ **Free AI (Built-in)**: Works immediately out of the box with zero keys, zero setup, and zero credit cards. Includes an automatic countdown timer so multi-question quizzes never get stuck on server limits.
+- ⚡ **Groq AI (Super Fast)**: Instant answers with zero wait time. Free keys take 10 seconds at [console.groq.com](https://console.groq.com/keys).
+- 🔑 **Google Gemini (Vision AI)**: Can solve questions with diagrams, circuits, charts, and chemistry formulas. Free keys at [Google AI Studio](https://aistudio.google.com/app/apikey).
+- 🌐 **Any Model**: Connect your [OpenRouter](https://openrouter.ai/keys) key to run DeepSeek R1, Claude, or GPT-4o.
 
 ---
 
-## ✨ Key Features
+## ✨ Features Students Love
 
-- **🧩 Native H5P Module Cracker**: Reads flashcards and crossword memory directly from the client-side DOM objects and solves them in milliseconds with 100% precision.
-- **📝 TinyMCE & Rich Text Automation**: Injects concise, natural academic answers directly into rich-text essay boxes and triggers native input dispatchers so forms detect content change.
-- **📚 1-Click Course Completion**: Automatically scans and ticks off "Done" buttons for all PDFs, reading chapters, and video lectures.
-- **⌨️ Muscle-Memory Shortcuts**:
+- 📝 **Solves Written & Essay Questions**: Automatically writes natural answers into text boxes.
+- 🧩 **H5P Flashcards & Crosswords**: Instantly finds the solutions to interactive flashcards and crosswords.
+- 📚 **1-Click Reading Check**: Automatically clicks "Done" on PDF modules, chapters, and video lessons.
+- 🔒 **100% Private & Undetected**: No tracking, no logs, and undetected by school portals. Runs directly on your device.
+- ⌨️ **Keyboard Shortcuts**:
   - <kbd>⌘⇧S</kbd> / <kbd>Ctrl+Shift+S</kbd> : Solve Current Question
-  - <kbd>⌘⇧A</kbd> / <kbd>Ctrl+Shift+A</kbd> : Trigger Autonomous Auto-Pilot
-  - <kbd>⌘⇧H</kbd> / <kbd>Ctrl+Shift+H</kbd> : Stealth Toggle (Show / Hide on-page HUD)
-- **🔒 100% Local Privacy**: Zero telemetry, zero external tracking databases, and zero analytics. Your API keys and school sessions stay strictly inside your browser's encrypted `chrome.storage.local`.
+  - <kbd>⌘⇧A</kbd> / <kbd>Ctrl+Shift+A</kbd> : Start Autopilot
+  - <kbd>⌘⇧H</kbd> / <kbd>Ctrl+Shift+H</kbd> : Stealth Mode (Hide the floating widget)
 
 ---
 
-## 🛠️ 30-Second Quickstart Installation
+## 🛠️ How to Install in 30 Seconds
 
-1. Clone or download this repository:
+1. Download or clone this repository:
    ```bash
    git clone https://github.com/rushilbh27/finish-my-work.git
    ```
 2. Open Google Chrome (or Brave, Arc, Edge, Opera).
-3. Navigate to `chrome://extensions/` in your URL bar.
-4. Turn on the **"Developer mode"** toggle in the top-right corner.
-5. Click **"Load unpacked"** in the top-left corner.
-6. Select the cloned `finish-my-work` folder.
-7. Pin **Finish My Work** to your toolbar — you're ready to conquer your workload!
+3. In the address bar, type:
+   ```
+   chrome://extensions
+   ```
+4. Turn on the **"Developer mode"** switch in the top-right corner.
+5. Click **"Load unpacked"** in the top-left corner and pick the `finish-my-work` folder.
+6. Pin the extension to your toolbar — you're ready to go!
 
 ---
 
-## 🎯 How to Use
+## ⭐ If this helped you, drop a Star!
 
-1. Navigate to your LMS portal (Moodle, PESLMS, Canvas, etc.).
-2. Open any quiz attempt, assignment, or study module.
-3. Click the extension icon in your Chrome toolbar:
-   - Pick your desired **Agent Mode** (`Draft Only`, `Full Submit`, `Course Batch`, or `All Courses`).
-   - Click **▶ Auto-Pilot** (or press <kbd>⌘⇧A</kbd>).
-4. Watch the extension effortlessly fill answers, navigate pages, and complete your tasks.
-
----
-
-## ⭐ Star History & Support
-
-If this tool saved your grade, spared your sanity, or gave you back your weekends, please **drop a Star (★) on GitHub** — it helps more students discover it!
-
----
-
-## 🤝 Contributing
-
-Contributions, issues, and feature requests are welcome!
-
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/EpicFeature`)
-3. Commit your Changes (`git commit -m 'feat: Add support for Canvas quiz format'`)
-4. Push to the Branch (`git push origin feature/EpicFeature`)
-5. Open a Pull Request
+If this saved you hours of boring homework, spared your sanity, or saved your grade, please **[click here to Star this repository](https://github.com/rushilbh27/finish-my-work)**! It takes one click and helps other students find it.
 
 ---
 
 ## 📄 License
 
-Distributed under the **MIT License**. See [`LICENSE`](LICENSE) for more details.
+Distributed under the **MIT License**. See [`LICENSE`](LICENSE) for details.

@@ -18,26 +18,29 @@
 
   <!-- Top System Bar -->
   <g transform="translate(56, 52)">
-    <rect x="0" y="0" width="250" height="26" fill="#f8fafc" stroke="#0f172a" stroke-width="1.5"/>
-    <rect x="2" y="2" width="250" height="26" fill="none" stroke="#0f172a" stroke-width="0"/>
-    <circle cx="12" cy="13" r="4" fill="#16a34a"/>
-    <text x="24" y="17" fill="#0f172a" font-size="10" font-weight="700" letter-spacing="1">CHROME EXTENSION // MV3</text>
+    <rect x="0" y="0" width="220" height="28" fill="#f8fafc" stroke="#0f172a" stroke-width="1.5"/>
+    <circle cx="14" cy="14" r="4" fill="#16a34a"/>
+    <text x="28" y="18" fill="#0f172a" font-size="10.5" font-weight="800" letter-spacing="1">FREE CHROME EXTENSION</text>
   </g>
 
-  <g transform="translate(970, 52)">
-    <rect x="0" y="0" width="145" height="26" fill="#2563eb" stroke="#0f172a" stroke-width="1.5"/>
-    <text x="72.5" y="17" fill="#ffffff" font-size="10" font-weight="700" text-anchor="middle" letter-spacing="1">v2.4.0 · OPEN SOURCE</text>
+  <!-- Top Right BANNER CTA TO STAR THE REPO -->
+  <g transform="translate(930, 48)">
+    <!-- Shadow -->
+    <rect x="3" y="3" width="185" height="34" fill="#0f172a"/>
+    <!-- Yellow High-Contrast Star Button -->
+    <rect x="0" y="0" width="185" height="34" fill="#facc15" stroke="#0f172a" stroke-width="2"/>
+    <text x="92.5" y="22" fill="#0f172a" font-size="12" font-weight="900" text-anchor="middle" letter-spacing="0.5">⭐ STAR ON GITHUB</text>
   </g>
 
-  <!-- Main Hero Brand -->
+  <!-- Main Hero Brand (Student-Friendly, Zero Jargon) -->
   <g transform="translate(56, 116)">
     <!-- Blue Accent Block -->
     <rect x="0" y="0" width="48" height="6" fill="#2563eb"/>
     <text x="0" y="52" fill="#0f172a" font-size="52" font-weight="900" letter-spacing="-1.5">FINISH MY WORK</text>
-    <text x="0" y="86" fill="#475569" font-size="16" font-weight="700" letter-spacing="0.5">UNIVERSAL AUTONOMOUS LMS &amp; ASSIGNMENT AUTOPILOT</text>
+    <text x="0" y="86" fill="#2563eb" font-size="16" font-weight="800" letter-spacing="0.5">AUTO-SOLVE YOUR LMS HOMEWORK &amp; QUIZZES IN SECONDS</text>
   </g>
 
-  <!-- Supported Engines Badges (Clean Neo-Brutalist Pills) -->
+  <!-- Supported Engines Badges (Clean, Simple, Student-Friendly) -->
   <g transform="translate(56, 230)">
     <!-- Free AI -->
     <g transform="translate(0, 0)">
@@ -48,33 +51,33 @@
 
     <!-- Groq -->
     <g transform="translate(155, 0)">
-      <rect x="2" y="2" width="160" height="32" fill="#0f172a"/>
-      <rect x="0" y="0" width="160" height="32" fill="#fffbeb" stroke="#0f172a" stroke-width="1.5"/>
-      <text x="80" y="20" fill="#b45309" font-size="11" font-weight="800" text-anchor="middle">⚡ Groq Llama 3.3</text>
+      <rect x="2" y="2" width="150" height="32" fill="#0f172a"/>
+      <rect x="0" y="0" width="150" height="32" fill="#fffbeb" stroke="#0f172a" stroke-width="1.5"/>
+      <text x="75" y="20" fill="#b45309" font-size="11" font-weight="800" text-anchor="middle">⚡ Groq (Super Fast)</text>
     </g>
 
     <!-- Gemini -->
-    <g transform="translate(330, 0)">
-      <rect x="2" y="2" width="165" height="32" fill="#0f172a"/>
-      <rect x="0" y="0" width="165" height="32" fill="#eff6ff" stroke="#0f172a" stroke-width="1.5"/>
-      <text x="82" y="20" fill="#1d4ed8" font-size="11" font-weight="800" text-anchor="middle">🔑 Gemini Vision AI</text>
+    <g transform="translate(320, 0)">
+      <rect x="2" y="2" width="175" height="32" fill="#0f172a"/>
+      <rect x="0" y="0" width="175" height="32" fill="#eff6ff" stroke="#0f172a" stroke-width="1.5"/>
+      <text x="87.5" y="20" fill="#1d4ed8" font-size="11" font-weight="800" text-anchor="middle">🔑 Gemini (Solves Diagrams)</text>
     </g>
 
-    <!-- OpenRouter -->
+    <!-- Any AI -->
     <g transform="translate(510, 0)">
-      <rect x="2" y="2" width="145" height="32" fill="#0f172a"/>
-      <rect x="0" y="0" width="145" height="32" fill="#faf5ff" stroke="#0f172a" stroke-width="1.5"/>
-      <text x="72" y="20" fill="#6b21a8" font-size="11" font-weight="800" text-anchor="middle">🌐 OpenRouter</text>
+      <rect x="2" y="2" width="130" height="32" fill="#0f172a"/>
+      <rect x="0" y="0" width="130" height="32" fill="#faf5ff" stroke="#0f172a" stroke-width="1.5"/>
+      <text x="65" y="20" fill="#6b21a8" font-size="11" font-weight="800" text-anchor="middle">🌐 Any Model</text>
     </g>
 
-    <!-- Supported Platforms -->
-    <g transform="translate(670, 0)">
-      <rect x="0" y="0" width="410" height="32" fill="#f8fafc" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3 3"/>
-      <text x="205" y="20" fill="#64748b" font-size="10.5" font-weight="700" text-anchor="middle">MOODLE · CANVAS · PES LMS · BLACKBOARD · H5P</text>
+    <!-- Supported Portals -->
+    <g transform="translate(655, 0)">
+      <rect x="0" y="0" width="430" height="32" fill="#f8fafc" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3 3"/>
+      <text x="215" y="20" fill="#64748b" font-size="10.5" font-weight="700" text-anchor="middle">MOODLE · CANVAS · PES LMS · BLACKBOARD · H5P</text>
     </g>
   </g>
 
-  <!-- 4 Clean Agent Modes Ribbon -->
+  <!-- 4 Clean Modes Ribbon (Student Clear) -->
   <g transform="translate(56, 286)">
     <!-- Mode 1 -->
     <g transform="translate(0, 0)">
@@ -83,7 +86,7 @@
       <rect x="12" y="10" width="24" height="20" fill="#0f172a"/>
       <text x="24" y="24" fill="#ffffff" font-size="10" font-weight="800" text-anchor="middle">01</text>
       <text x="44" y="25" fill="#0f172a" font-size="13" font-weight="800">Draft Only</text>
-      <text x="14" y="52" fill="#64748b" font-size="10.5" font-family="-apple-system, BlinkMacSystemFont, sans-serif">Solves all questions · No final submit</text>
+      <text x="14" y="52" fill="#64748b" font-size="10.5" font-family="-apple-system, BlinkMacSystemFont, sans-serif">Answers quiz · You review &amp; submit</text>
     </g>
 
     <!-- Mode 2 -->
@@ -93,7 +96,7 @@
       <rect x="12" y="10" width="24" height="20" fill="#2563eb"/>
       <text x="24" y="24" fill="#ffffff" font-size="10" font-weight="800" text-anchor="middle">02</text>
       <text x="44" y="25" fill="#1d4ed8" font-size="13" font-weight="800">Full Submit</text>
-      <text x="14" y="52" fill="#3b82f6" font-size="10.5" font-weight="600" font-family="-apple-system, BlinkMacSystemFont, sans-serif">Solves quiz + confirms submission</text>
+      <text x="14" y="52" fill="#3b82f6" font-size="10.5" font-weight="600" font-family="-apple-system, BlinkMacSystemFont, sans-serif">Answers all + auto-submits quiz</text>
     </g>
 
     <!-- Mode 3 -->
@@ -103,7 +106,7 @@
       <rect x="12" y="10" width="24" height="20" fill="#0f172a"/>
       <text x="24" y="24" fill="#ffffff" font-size="10" font-weight="800" text-anchor="middle">03</text>
       <text x="44" y="25" fill="#0f172a" font-size="13" font-weight="800">Course Batch</text>
-      <text x="14" y="52" fill="#64748b" font-size="10.5" font-family="-apple-system, BlinkMacSystemFont, sans-serif">Solves all assignments in one course</text>
+      <text x="14" y="52" fill="#64748b" font-size="10.5" font-family="-apple-system, BlinkMacSystemFont, sans-serif">Solves every task in this course</text>
     </g>
 
     <!-- Mode 4 -->
@@ -113,7 +116,7 @@
       <rect x="12" y="10" width="24" height="20" fill="#0f172a"/>
       <text x="24" y="24" fill="#ffffff" font-size="10" font-weight="800" text-anchor="middle">04</text>
       <text x="44" y="25" fill="#0f172a" font-size="13" font-weight="800">All Courses</text>
-      <text x="14" y="52" fill="#64748b" font-size="10.5" font-family="-apple-system, BlinkMacSystemFont, sans-serif">Automates every course on portal</text>
+      <text x="14" y="52" fill="#64748b" font-size="10.5" font-family="-apple-system, BlinkMacSystemFont, sans-serif">Clears all your enrolled courses</text>
     </g>
   </g>
 
@@ -133,13 +136,13 @@
 
       <rect x="310" y="0" width="46" height="22" fill="#0f172a"/>
       <text x="333" y="15" fill="#ffffff" font-size="10" font-weight="800" text-anchor="middle">⌘⇧H</text>
-      <text x="366" y="15" fill="#0f172a" font-size="11" font-weight="700">Stealth HUD</text>
+      <text x="366" y="15" fill="#0f172a" font-size="11" font-weight="700">Stealth Mode</text>
     </g>
 
     <!-- Right Privacy Notice -->
-    <g transform="translate(850, 16)">
+    <g transform="translate(830, 16)">
       <circle cx="10" cy="11" r="4" fill="#16a34a"/>
-      <text x="22" y="15" fill="#475569" font-size="11" font-weight="700">100% Client-Side · Zero Telemetry</text>
+      <text x="22" y="15" fill="#16a34a" font-size="11" font-weight="800">🔒 100% Private · Safe &amp; Undetected</text>
     </g>
   </g>
 </svg>
