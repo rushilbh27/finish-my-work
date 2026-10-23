@@ -192,5 +192,89 @@ window.AIEngine = {
     }
 
     return res;
+  },
+
+  // Multi-choice solver (Select all that apply / checkboxes)
+  async solveMultiChoice(questionText, options, imgElement = null) {
+    let imageBase64 = null;
+    if (imgElement) {
+      imageBase64 = await this.imageToBase64(imgElement);
+    }
+
+    const maxLetter = String.fromCharCode(65 + options.length - 1);
+    const formattedOptions = options
+      .map((opt, i) => `${String.fromCharCode(65 + i)}. ${opt.text}`)
+      .join('\n');
+
+    let prompt = `Question: ${questionText}\n\nOptions:\n${formattedOptions}\n\n`;
+    if (imageBase64) {
+      prompt += `Note: An image or diagram is attached. Please inspect it carefully.\n\n`;
+    }
+    prompt += `Task: Select ALL correct options that apply (there may be more than one). Respond ONLY with uppercase option letters separated by commas (e.g. "A, C" or "B, D, E"). Do not include any explanations.`;
+
+    const result = await this.generateAnswer(
+      prompt,
+      imageBase64,
+      `You are an expert academic exam solver. Output ONLY uppercase option letters separated by commas, e.g. A, C.`
+    );
+
+    if (!result?.success) {
+      return { 
+        success: false, 
+        rateLimited: !!result?.rateLimited, 
+        waitSec: result?.waitSec || 30, 
+        error: result?.error || 'AI call failed',
+        warningNotice: result?.warningNotice
+      };
+    }
+
+    const answer = result.text || '';
+    const letters = [];
+    const validLetters = new Set();
+    for (let i = 0; i < options.length; i++) validLetters.add(String.fromCharCode(65 + i));
+
+    const matches = answer.match(/[A-Z]/gi) || [];
+    for (const m of matches) {
+      const up = m.toUpperCase();
+      if (validLetters.has(up) && !letters.includes(up)) {
+        letters.push(up);
+      }
+    }
+
+    if (letters.length > 0) {
+      return { success: true, letters, warningNotice: result.warningNotice };
+    }
+
+    return { success: false, error: 'Could not extract answer letters', warningNotice: result.warningNotice };
+  },
+
+  // Fill-in-the-blanks / Drag-and-drop solver for sentences with blanks and choices
+  async solveFillInBlanks(questionText, availableWords) {
+    const prompt = `Task: Complete the sentences by choosing the correct word from the available list for each blank [1], [2], etc.\n\n` +
+      `Text with blanks:\n${questionText}\n\n` +
+      `Available choices:\n${availableWords.join(', ')}\n\n` +
+      `Output ONLY a valid JSON object mapping blank numbers (e.g. "1", "2") to the exact chosen word. Example: {"1": "WordA", "2": "WordB"}. No other text.`;
+
+    const res = await this.generateAnswer(
+      prompt,
+      null,
+      'You are an expert academic exam solver. Output ONLY valid JSON mapping blank numbers to chosen words, e.g. {"1":"WordA","2":"WordB"}.'
+    );
+
+    if (res?.success && res.text) {
+      try {
+        let clean = res.text.trim();
+        // Remove markdown code fences if present
+        clean = clean.replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
+        const jsonMatch = clean.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const mapping = JSON.parse(jsonMatch[0]);
+          return { success: true, mapping, warningNotice: res.warningNotice };
+        }
+      } catch (e) {
+        console.warn('[Autopilot AI] JSON parse failed for blanks:', e);
+      }
+    }
+    return res;
   }
 };

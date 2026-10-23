@@ -29,6 +29,12 @@ window.QuizSolver = {
 
   // Solves whatever question is present on the current attempt page
   async solveCurrentPage() {
+    if (window.UniversalSolver) {
+      const res = await window.UniversalSolver._solveAllOnPage(() => {}, () => true);
+      window.onbeforeunload = null;
+      return { success: true, allAnswered: res.allAnswered };
+    }
+
     const questions = Array.from(document.querySelectorAll('.que'));
     if (!questions.length) return { success: false, message: "No question containers found on this page" };
 
