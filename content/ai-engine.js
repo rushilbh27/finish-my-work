@@ -206,7 +206,7 @@ window.AIEngine = {
   },
 
   // Numerical Answer Type (NAT) solver for STEM and math problems (IITM NAT format)
-  async solveNATAnswer(questionText, imgElement = null) {
+  async solveNATAnswer(questionText, imgElement = null, portalHint = '') {
     let imageBase64 = null;
     if (imgElement) {
       imageBase64 = await this.imageToBase64(imgElement);
@@ -214,11 +214,12 @@ window.AIEngine = {
 
     const prompt = `CRITICAL TASK: NUMERICAL ANSWER TYPE (NAT) QUESTION.\n\n` +
       `Question:\n"${questionText}"\n\n` +
+      (portalHint ? `SYSTEM CONSTRAINTS & PORTAL HINTS:\n${portalHint}\nYou MUST strictly adhere to this format!\n\n` : '') +
       (imageBase64 ? `Note: An image containing mathematical equations, matrices, or diagrams is attached. Read all symbols and coefficients carefully.\n\n` : '') +
       `INSTRUCTIONS:\n` +
       `1. Compute the exact mathematical or numerical value required by the question.\n` +
-      `2. Respond ONLY with the final numerical value (e.g., "4", "-2.5", "0.75", "12").\n` +
-      `3. Do NOT include any variable names (e.g. do NOT write "x = 4", write "4"), units, words, fractions (convert to decimal if needed), or explanations. Output ONLY the pure numerical value.`;
+      `2. Respond ONLY with the final numerical value (e.g., "-2", "4", "0.75", "12"). No words, no sentences, no periods after the number.\n` +
+      `3. Do NOT include any variable names (e.g. do NOT write "a = -2", write "-2"), units, words, fractions (convert to decimal if needed), or explanations. Output ONLY the pure numerical value.`;
 
     const result = await this.generateAnswer(
       prompt,
@@ -228,9 +229,30 @@ window.AIEngine = {
 
     if (result?.success && result.text) {
       let clean = result.text.trim().replace(/^["'`]+|["'`]+$/g, '');
-      const numMatch = clean.match(/[-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?/);
+      
+      // Strip common prefixes: "a = ", "answer = ", "value of a is "
+      clean = clean.replace(/^[a-zA-Z_]\s*=\s*/, '');
+      clean = clean.replace(/^(?:the\s+)?(?:final\s+)?(?:value\s+of\s+[a-zA-Z_]+\s+is|answer\s*is|answer:)\s*/i, '');
+
+      // 1. Check for standalone exact number line (e.g. "-2" or "28")
+      const lines = clean.split('\n').map(l => l.trim()).filter(Boolean);
+      for (let line of lines) {
+        let stripped = line.replace(/^[a-zA-Z_]\s*=\s*/, '').replace(/^(?:the\s+)?answer\s*[:=]\s*/i, '').trim();
+        if (/^[-+]?[0-9]+(?:\.[0-9]+)?$/.test(stripped)) {
+          return { success: true, text: stripped, warningNotice: result.warningNotice };
+        }
+      }
+
+      // 2. Prevent sentence periods from merging with following numbers (e.g. "-2. 2 seconds later" -> "-2")
+      // Replace ". " between a number and word with a space
+      clean = clean.replace(/(\d+)\.\s+(?=[a-zA-Z0-9])/g, '$1 ');
+
+      // 3. Extract the first isolated number
+      const numMatch = clean.match(/[-+]?[0-9]+(?:\.[0-9]+)?/);
       if (numMatch) {
-        return { success: true, text: numMatch[0], warningNotice: result.warningNotice };
+        let val = numMatch[0];
+        if (val.endsWith('.')) val = val.slice(0, -1);
+        return { success: true, text: val, warningNotice: result.warningNotice };
       }
       return { success: true, text: clean, warningNotice: result.warningNotice };
     }

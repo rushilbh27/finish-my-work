@@ -1597,9 +1597,33 @@ window.UniversalSolver = {
         q.container?.innerText?.toLowerCase().includes('numeric') ||
         q.container?.innerText?.toLowerCase().includes('type : sa');
 
+      // Extract portal hints and format constraints (e.g. "Only numeric input is accepted for this question.")
+      let portalHint = '';
+      const hintEls = q.container?.querySelectorAll('mat-hint, .mat-mdc-form-field-hint, [class*="hint"], .instruction, [class*="instruction"], [class*="helper"]') || [];
+      hintEls.forEach(el => {
+        const ht = (el.innerText || '').trim();
+        if (ht) portalHint += ` ${ht}`;
+      });
+      const containerText = q.container?.innerText || '';
+      const hintMatch = containerText.match(/Only numeric input is accepted[^\n.]*|Enter integer[^\n.]*|round(?:ed)? to \d+ decimal[^\n.]*/i);
+      if (hintMatch && !portalHint.includes(hintMatch[0])) {
+        portalHint += ` ${hintMatch[0]}`;
+      }
+      portalHint = portalHint.trim();
+
+      // FALSE POSITIVE PROTECTION: If the input already contains a valid answer, NEVER overwrite it!
+      const existingVal = (q.textInput.value || q.textInput.innerText || '').trim();
+      if (existingVal.length > 0) {
+        if (isNAT && /^[-+]?[0-9]+(?:\.[0-9]+)?$/.test(existingVal)) {
+          updateStatus?.(`Kept existing answer: ${existingVal}`);
+          q.isAnswered = true;
+          return { success: true, answer: existingVal };
+        }
+      }
+
       if (isNAT) {
         updateStatus?.(`Calculating NAT numerical value...`);
-        aiRes = await window.AIEngine.solveNATAnswer(q.text, q.image);
+        aiRes = await window.AIEngine.solveNATAnswer(q.text, q.image, portalHint);
       } else {
         aiRes = await window.AIEngine.solveBriefAnswer(q.text, q.image);
       }
@@ -1619,6 +1643,18 @@ window.UniversalSolver = {
           }
         }
         ans = ans.replace(/^["'`]+|["'`]+$/g, '').trim();
+
+        // Strict numeric formatting validation for NAT
+        if (isNAT) {
+          const numOnly = ans.match(/[-+]?[0-9]+(?:\.[0-9]+)?/);
+          if (numOnly) {
+            ans = numOnly[0];
+          } else if (existingVal && /^[-+]?[0-9]+(?:\.[0-9]+)?$/.test(existingVal)) {
+            // If AI returned non-numeric, retain existing valid numeric answer
+            ans = existingVal;
+          }
+        }
+
         if (!ans) {
           updateStatus?.('AI returned non-answer, skipping.');
           return { success: false, message: 'Invalid AI answer format' };
