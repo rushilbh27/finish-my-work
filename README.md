@@ -22,23 +22,19 @@
 
 ## ⚡ What is Finish My Work?
 
-**Finish My Work** is an open-source, neo-brutalist Chrome extension that autonomously solves assignments, quizzes, and assessments across university platforms.
+**Finish My Work** is an open-source Chrome extension that autonomously solves assignments, quizzes, and assessments across university learning platforms.
 
 🌐 **Landing Page & Live Demo:** [rushilbh27.github.io/finish-my-work](https://rushilbh27.github.io/finish-my-work/)
 
-Whether your institution runs **Moodle**, **Canvas**, **Blackboard**, **Google Forms**, or the **IITM Online Degree Portal** (`seek.onlinedegree.iitm.ac.in`), Finish My Work detects questions on screen, reasons over choices using multi-engine AI, advances paginated quizzes, and completes homework without manual babysitting.
+Whether your course runs on **Moodle**, **Canvas**, **Blackboard**, **Google Forms**, or the **IITM Online Degree Portal** (`seek.onlinedegree.iitm.ac.in`), Finish My Work detects on-screen questions, solves them using multi-engine AI (Groq, Gemini, Ollama), navigates between questions automatically, and submits when finished.
 
 ---
 
-## 📸 Surfaces & Neo-Brutalist System
-
-The interface is engineered around an uncompromised Neo-Brutalist design language: thick 2.5–3px ink borders, hard unblurred offset block shadows, tactile press-down buttons, zero external webfonts, and zero remote tracking scripts.
+## 📸 Screenshots & Interface
 
 <p align="center">
   <img src="assets/landing-desktop.png" alt="Finish My Work Landing Page Preview" width="100%" />
 </p>
-
-### 1. Toolbar Popup (`popup/`) & 2. In-Page Floating HUD (`content/`)
 
 <table width="100%">
   <tr>
@@ -47,18 +43,17 @@ The interface is engineered around an uncompromised Neo-Brutalist design languag
       <img src="assets/popup-main.png" alt="Finish My Work Toolbar Popup" width="100%" />
     </td>
     <td width="65%" align="center" valign="top">
-      <strong>In-Page Floating HUD (Dark Mode Host)</strong><br/><br/>
+      <strong>In-Page Floating HUD</strong><br/><br/>
       <img src="assets/floating-module-dark.png" alt="Finish My Work In-Page HUD Dark Page" width="100%" />
       <br/><br/>
-      <strong>In-Page Floating HUD (Light Mode Host)</strong><br/><br/>
       <img src="assets/floating-module-light.png" alt="Finish My Work In-Page HUD Light Page" width="100%" />
     </td>
   </tr>
 </table>
 
-- **1. Toolbar Popup (`popup/`)**: High-visibility status stamp, dominant primary Auto-Pilot hero action, agent mode dropdown, and a technical configuration drawer.
-- **2. In-Page Floating HUD (`content/`)**: Dual-contrast borders and shadows (`4px 4px 0 #0f172a, 0 0 0 2px #fff`) optimized for both light and dark host pages, draggable header, stealth mode (<kbd>⌘⇧H</kbd>), and collapsible corner sticker tab (`[— FMW]`).
-- **3. Landing Page (`index.html`)**: Complete standalone website with live interactive in-browser quiz simulation, bento grid, and terminal installation snippet.
+- **Toolbar Popup (`popup/`)**: Quick-access settings to switch AI models, select autopilot mode, adjust delay timers, and trigger Auto-Pilot.
+- **In-Page Floating HUD (`content/`)**: An on-screen widget that attaches directly to your quiz, showing real-time solver logs and controls. Press <kbd>⌘⇧H</kbd> (or <kbd>Ctrl+Shift+H</kbd>) for instant stealth mode (hide/show).
+- **Interactive Web Demo (`index.html`)**: Try an interactive simulated quiz directly in your browser without installing the extension at [rushilbh27.github.io/finish-my-work](https://rushilbh27.github.io/finish-my-work/).
 
 ---
 
