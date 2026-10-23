@@ -438,7 +438,60 @@ async function runMonitoredTests() {
     if (!iitmValidation.success || !iitmValidation.hasMath || !iitmValidation.hasCommon || iitmValidation.hasClearSelection || !iitmValidation.isCChecked) {
       throw new Error(`IITM validation failed: ${JSON.stringify(iitmValidation)}`);
     }
-    console.log('🎉 IITM ONLINE DEGREE ASSESSMENT: 100% COMPATIBLE & SOLVED!');
+
+    // Advance to Question 5 (NAT Textarea Question)
+    console.log('\n[TEST 6.2] Advancing to IITM Question 5 (NAT Textarea Problem)...');
+    await page.evaluate(() => {
+      const nextBtn = window.UniversalSolver.findNextButton();
+      if (nextBtn) nextBtn.click();
+    });
+    await page.waitForTimeout(400);
+
+    const iitmNatValidation = await page.evaluate(async () => {
+      const questions = window.UniversalSolver.detectAllQuestions();
+      if (!questions || questions.length !== 1) {
+        return { success: false, error: `Expected 1 question on screen, got ${questions ? questions.length : 0}` };
+      }
+
+      const q = questions[0];
+      const hasFormula = q.text.includes('15x^2');
+      const excludedBoilerplate = !q.text.includes('Your answer') && !q.text.includes('Only numeric input is accepted');
+      const isTextarea = q.textInput && q.textInput.tagName === 'TEXTAREA';
+
+      // Mock NAT solve
+      window.AIEngine.solveNATAnswer = async () => ({ success: true, text: '3' });
+      await window.UniversalSolver.solveQuestionItem(q, (m) => console.log('[IITM-NAT-SOLVE]', m));
+
+      const filledVal = q.textInput?.value;
+      const isAnswered = q.isAnswered;
+      const nextBtn = window.UniversalSolver.findNextButton();
+
+      return {
+        success: true,
+        type: q.type,
+        isNAT: q.isNAT,
+        isTextarea,
+        hasFormula,
+        excludedBoilerplate,
+        filledVal,
+        isAnswered,
+        hasNext: !!nextBtn
+      };
+    });
+
+    console.log('✓ IITM NAT question detected type:', iitmNatValidation.type);
+    console.log('✓ IITM isNAT flag:', iitmNatValidation.isNAT);
+    console.log('✓ IITM Textarea element matched:', iitmNatValidation.isTextarea);
+    console.log('✓ Math formula 15x^2 preserved:', iitmNatValidation.hasFormula);
+    console.log('✓ Stripped answer & numeric boilerplate:', iitmNatValidation.excludedBoilerplate);
+    console.log('✓ Calculated NAT value filled into textarea:', `"${iitmNatValidation.filledVal}"`);
+    console.log('✓ isAnswered updated to true:', iitmNatValidation.isAnswered);
+
+    if (!iitmNatValidation.success || !iitmNatValidation.isNAT || !iitmNatValidation.isTextarea || iitmNatValidation.filledVal !== '3') {
+      throw new Error(`IITM NAT validation failed: ${JSON.stringify(iitmNatValidation)}`);
+    }
+
+    console.log('🎉 IITM ONLINE DEGREE ASSESSMENT & NAT TEXTAREA: 100% COMPATIBLE & SOLVED!');
 
     // ── TEST 7: IITM Sidebar Graded-Only Filtering & Start Assessment Button ──
     console.log('\n[TEST 7] Testing IITM Sidebar Graded Filtering & Start Assessment Button...');

@@ -5,10 +5,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Finish My Work</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link
-    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700;800&display=swap"
-    rel="stylesheet">
   <link rel="stylesheet" href="popup.css">
 </head>
 
@@ -16,14 +12,14 @@
   <div class="app-container">
 
     <!-- ── Header ── -->
-    <div class="app-header">
+    <header class="app-header">
       <div class="brand">
         <span class="brand-dash">—</span>
-        <span class="brand-title">Finish My Work</span>
+        <h1 class="brand-title">Finish My Work</h1>
       </div>
       <div class="header-ctrls">
-        <button class="btn-gear" id="btn-toggle-settings" title="Settings / Configuration">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+        <button class="btn-gear" id="btn-toggle-settings" title="Settings / Configuration" aria-label="Settings">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
             stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="3"></circle>
             <path
@@ -32,30 +28,35 @@
           </svg>
         </button>
         <label class="power-switch" title="Turn extension ON/OFF">
-          <input type="checkbox" id="toggle-power" checked>
+          <input type="checkbox" id="toggle-power" checked aria-label="Toggle extension power">
           <span class="power-slider"></span>
         </label>
       </div>
-    </div>
+    </header>
 
     <!-- ══════════════════════════════════════════════════
-         MAIN VIEW (Clean, Normal Size, Everyday Use)
+         MAIN VIEW (Everyday Brutalist Controls)
          ══════════════════════════════════════════════════ -->
-    <div class="view-panel" id="view-main">
-      <!-- Status line -->
-      <div class="status-row">
-        <span class="status-dot" id="status-dot"></span>
-        <span class="status-text" id="status-text">Ready</span>
-        <span class="status-badge" id="active-provider-badge">FREE AI</span>
+    <main class="view-panel" id="view-main">
+      <!-- Status Stamp -->
+      <div class="status-stamp">
+        <div class="status-stamp-meta">
+          <span class="status-dot" id="status-dot"></span>
+          <span class="status-title">STATUS</span>
+        </div>
+        <div class="status-headline">
+          <span class="status-text" id="status-text">Ready</span>
+          <span class="status-badge" id="active-provider-badge">FREE AI</span>
+        </div>
       </div>
 
-      <!-- Action Buttons -->
-      <div class="actions-grid">
-        <button class="btn-action btn-secondary" id="btn-popup-solve">
-          ⚡ Solve Current
-        </button>
-        <button class="btn-action btn-primary" id="btn-popup-auto">
+      <!-- Action Buttons: Clear Hero Hierarchy -->
+      <div class="actions-stack">
+        <button class="btn-action btn-hero" id="btn-popup-auto">
           ▶ Auto-Pilot
+        </button>
+        <button class="btn-action btn-sub" id="btn-popup-solve">
+          ⚡ Solve Current Question
         </button>
       </div>
 
@@ -64,7 +65,7 @@
         <span class="mode-label">MODE</span>
         <div class="mode-dropdown-wrapper">
           <span class="mode-display-val" id="mode-display-val">Draft Only</span>
-          <select class="mode-dropdown" id="agent-mode-select" title="Agent Mode">
+          <select class="mode-dropdown" id="agent-mode-select" title="Agent Mode" aria-label="Select Agent Mode">
             <option value="draft">Draft Only: Solve, don't submit</option>
             <option value="submit">Full Submit: Solve + submit quiz</option>
             <option value="course">Course Batch: All assignments in course</option>
@@ -74,10 +75,10 @@
       </div>
 
       <!-- User Feedback Notification Banner -->
-      <div class="notify-banner hidden" id="notify-banner"></div>
+      <div class="notify-banner hidden" id="notify-banner" role="status"></div>
 
-      <!-- Shortcuts Row (SAH - Solve, Auto, Hide) -->
-      <div class="shortcuts-footer">
+      <!-- Shortcuts Row -->
+      <footer class="shortcuts-footer">
         <div class="shortcut-item">
           <kbd>⌘⇧S</kbd>
           <span>Solve</span>
@@ -88,88 +89,83 @@
         </div>
         <div class="shortcut-item">
           <kbd>⌘⇧H</kbd>
-          <span>Hide</span>
+          <span>Stealth</span>
         </div>
-      </div>
-    </div>
+      </footer>
+    </main>
 
     <!-- ══════════════════════════════════════════════════
          SETTINGS VIEW (Configuration Drawer)
          ══════════════════════════════════════════════════ -->
-    <div class="view-panel hidden" id="view-settings">
+    <section class="view-panel hidden" id="view-settings">
       <div class="settings-head">
-        <span class="settings-tag">// CONFIGURATION</span>
+        <span class="settings-tag">CONFIGURATION</span>
         <button class="btn-close-settings" id="btn-close-settings">Done ✕</button>
       </div>
 
       <!-- Provider Tabs -->
-      <div class="provider-tabs">
-        <button class="tech-tab-btn active" data-provider="free">✦ Free</button>
-        <button class="tech-tab-btn" data-provider="groq">⚡ Groq</button>
-        <button class="tech-tab-btn" data-provider="gemini">🔑 Gemini</button>
-        <button class="tech-tab-btn" data-provider="openrouter">🌐 OpenRouter</button>
+      <div class="provider-tabs" role="tablist">
+        <button class="tech-tab-btn active" data-provider="free" role="tab">✦ Free</button>
+        <button class="tech-tab-btn" data-provider="groq" role="tab">⚡ Groq</button>
+        <button class="tech-tab-btn" data-provider="gemini" role="tab">🔑 Gemini</button>
+        <button class="tech-tab-btn" data-provider="openrouter" role="tab">🌐 OpenRouter</button>
       </div>
 
       <!-- 1. Free tab content -->
       <div class="provider-card" id="card-free">
-        <div class="callout-amber">
-          <div class="callout-tag text-amber">// BUILT-IN FREE ENGINE</div>
-          <p class="callout-desc">Zero keys needed. Automatically waits out the 30s rate-limit cooldown so no question
-            is ever skipped.</p>
+        <div class="callout-box callout-amber">
+          <div class="callout-tag">BUILT-IN FREE ENGINE</div>
+          <p class="callout-desc">Zero keys needed. Automatically waits out the 30s rate-limit cooldown so no question is skipped.</p>
         </div>
       </div>
 
       <!-- 2. Groq tab content -->
       <div class="provider-card hidden" id="card-groq">
-        <div class="callout-blue">
-          <div class="callout-tag text-blue">// GROQ CLOUD (30 REQ/MIN · 0s WAIT)</div>
-          <p class="callout-desc">Fastest free option. Sign in with Google at console.groq.com (no credit card needed).
-          </p>
+        <div class="callout-box callout-blue">
+          <div class="callout-tag">GROQ CLOUD (30 REQ/MIN · 0s WAIT)</div>
+          <p class="callout-desc">Fastest free option. Sign in with Google at console.groq.com (no credit card needed).</p>
           <div class="input-wrap">
             <input type="password" id="groq-key" class="tech-input" placeholder="Paste gsk_... key"
               autocomplete="off" />
-            <button class="reveal-btn" data-target="groq-key">👁</button>
+            <button class="reveal-btn" data-target="groq-key" type="button" aria-label="Reveal key">👁</button>
           </div>
           <div class="card-error hidden" id="groq-error"></div>
           <div class="link-row">
-            <a href="https://console.groq.com/keys" target="_blank" class="callout-link">Get Free Key at
-              console.groq.com →</a>
+            <a href="https://console.groq.com/keys" target="_blank" class="callout-link">Get Free Key at console.groq.com</a>
           </div>
         </div>
       </div>
 
       <!-- 3. Gemini tab content -->
       <div class="provider-card hidden" id="card-gemini">
-        <div class="callout-blue">
-          <div class="callout-tag text-blue">// GOOGLE GEMINI (VISION AI)</div>
+        <div class="callout-box callout-blue">
+          <div class="callout-tag">GOOGLE GEMINI (VISION AI)</div>
           <p class="callout-desc">Supports test diagrams, circuit schematics, charts, and geometry.</p>
           <div class="input-wrap">
             <input type="password" id="gemini-key" class="tech-input" placeholder="Paste Gemini API key"
               autocomplete="off" />
-            <button class="reveal-btn" data-target="gemini-key">👁</button>
+            <button class="reveal-btn" data-target="gemini-key" type="button" aria-label="Reveal key">👁</button>
           </div>
           <div class="card-error hidden" id="gemini-error"></div>
           <div class="link-row">
-            <a href="https://aistudio.google.com/app/apikey" target="_blank" class="callout-link">Get Key at
-              aistudio.google.com →</a>
+            <a href="https://aistudio.google.com/app/apikey" target="_blank" class="callout-link">Get Key at aistudio.google.com</a>
           </div>
         </div>
       </div>
 
       <!-- 4. OpenRouter tab content -->
       <div class="provider-card hidden" id="card-openrouter">
-        <div class="callout-blue">
-          <div class="callout-tag text-blue">// OPENROUTER (FREE MODELS)</div>
+        <div class="callout-box callout-blue">
+          <div class="callout-tag">OPENROUTER (FREE MODELS)</div>
           <p class="callout-desc">Access Llama 3.3 and DeepSeek R1 free models.</p>
           <div class="input-wrap">
             <input type="password" id="openrouter-key" class="tech-input" placeholder="Paste sk-or-... key"
               autocomplete="off" />
-            <button class="reveal-btn" data-target="openrouter-key">👁</button>
+            <button class="reveal-btn" data-target="openrouter-key" type="button" aria-label="Reveal key">👁</button>
           </div>
           <div class="card-error hidden" id="openrouter-error"></div>
           <div class="link-row">
-            <a href="https://openrouter.ai/keys" target="_blank" class="callout-link">Get Key at openrouter.ai/keys
-              →</a>
+            <a href="https://openrouter.ai/keys" target="_blank" class="callout-link">Get Key at openrouter.ai/keys</a>
           </div>
         </div>
       </div>
@@ -178,17 +174,17 @@
       <div class="pref-row">
         <div class="pref-label">
           <div class="pref-name">Show In-Page Floating HUD</div>
-          <div class="pref-sub">Keep off to run 100% cleanly from toolbar & shortcuts</div>
+          <div class="pref-sub">Keep off to run 100% cleanly from toolbar &amp; shortcuts</div>
         </div>
-        <label class="power-switch">
-          <input type="checkbox" id="toggle-floating-widget">
+        <label class="power-switch" title="Toggle HUD visibility">
+          <input type="checkbox" id="toggle-floating-widget" aria-label="Toggle In-Page Floating HUD">
           <span class="power-slider"></span>
         </label>
       </div>
 
       <!-- Save Button -->
-      <button class="btn-save" id="btn-save-key">SAVE CONFIGURATION</button>
-    </div>
+      <button class="btn-save" id="btn-save-key" type="button">SAVE CONFIGURATION</button>
+    </section>
 
   </div>
 

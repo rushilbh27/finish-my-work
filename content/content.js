@@ -29,7 +29,14 @@
   }
 
   container.innerHTML = `
-    <!-- Compact Technical HUD Card -->
+    <!-- Minimized Docked Tab (High Visibility Neo-Brutalist Sticker) -->
+    <button class="peslms-dock-tab" id="peslms-dock-tab" style="display: none;" title="Expand Finish My Work HUD" aria-label="Expand Finish My Work HUD">
+      <span class="peslms-dock-dash">—</span>
+      <span class="peslms-dock-title">FMW</span>
+      <span class="peslms-dock-dot" id="peslms-dock-dot"></span>
+    </button>
+
+    <!-- Compact Neo-Brutalist HUD Card -->
     <div class="peslms-widget" id="peslms-main-widget">
       <!-- Header -->
       <div class="peslms-header" id="peslms-drag-handle">
@@ -38,22 +45,23 @@
           <div class="peslms-title">Finish My Work</div>
         </div>
         <div class="peslms-header-ctrls">
-          <button class="peslms-ctrl-btn" id="peslms-btn-close" title="Hide HUD (⌘⇧H)">✕</button>
+          <button class="peslms-ctrl-btn" id="peslms-btn-minimize" title="Collapse to dock tab" aria-label="Minimize HUD">—</button>
+          <button class="peslms-ctrl-btn" id="peslms-btn-close" title="Hide HUD (⌘⇧H)" aria-label="Close HUD">✕</button>
         </div>
       </div>
 
-      <!-- Status Bar (Image 3 Authentication / Warning style) -->
+      <!-- Status Bar -->
       <div class="peslms-status-wrap" id="peslms-status-wrap">
         <div class="peslms-status-icon" id="peslms-status-icon"></div>
         <div class="peslms-status" id="peslms-status-text">Ready</div>
       </div>
 
-      <!-- Actions -->
+      <!-- Actions Stack -->
       <div class="peslms-actions">
-        <button class="peslms-btn" id="peslms-btn-auto-pilot">
+        <button class="peslms-btn" id="peslms-btn-auto-pilot" type="button">
           ▶ &nbsp;Run Auto-Pilot
         </button>
-        <button class="peslms-btn-secondary" id="peslms-btn-solve-once">
+        <button class="peslms-btn-secondary" id="peslms-btn-solve-once" type="button">
           ⚡ &nbsp;Solve Visible Question
         </button>
       </div>
@@ -76,9 +84,24 @@
   const btnAutoPilot = document.getElementById('peslms-btn-auto-pilot');
   const btnSolveOnce = document.getElementById('peslms-btn-solve-once');
   const btnClose = document.getElementById('peslms-btn-close');
+  const btnMinimize = document.getElementById('peslms-btn-minimize');
+  const dockTab = document.getElementById('peslms-dock-tab');
+  const dockDot = document.getElementById('peslms-dock-dot');
 
   let isAutoPilotRunning = false;
   let currentAgentMode = 'draft'; // default mode
+
+  btnMinimize?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    mainWidget.style.display = 'none';
+    dockTab.style.display = 'flex';
+  });
+
+  dockTab?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    dockTab.style.display = 'none';
+    mainWidget.style.display = 'flex';
+  });
 
   // Load saved agent mode
   try {
@@ -126,6 +149,12 @@
       statusIcon?.classList.add('spinning');
     } else {
       statusIcon?.classList.remove('spinning');
+    }
+
+    if (dockDot) {
+      if (isWarning) dockDot.className = 'peslms-dock-dot warn';
+      else if (spinning) dockDot.className = 'peslms-dock-dot active';
+      else dockDot.className = 'peslms-dock-dot';
     }
 
     // Broadcast in real-time to popup if open
@@ -311,6 +340,12 @@
       e.preventDefault();
       const isHidden = container.style.display === 'none';
       container.style.display = isHidden ? 'block' : 'none';
+    }
+    if (e.key === 'Escape' && container.style.display !== 'none') {
+      if (dockTab && dockTab.style.display === 'none') {
+        mainWidget.style.display = 'none';
+        dockTab.style.display = 'flex';
+      }
     }
   });
 })();

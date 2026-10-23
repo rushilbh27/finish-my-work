@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Finish My Work — Autonomous LMS Quiz &amp; Assignment Solver</title>
+  <meta name="description"
+    content="Universal autonomous assignment and quiz solver for Moodle, Canvas, Blackboard, Google Forms, and IITM Online Degree. 4 agent modes. Zero tracking. 100% free with built-in AI.">
+  <meta property="og:title" content="Finish My Work — Autonomous LMS Solver">
+  <meta property="og:description"
+    content="Stop wasting hours on repetitive LMS quizzes. 4 agent modes, multimodal vision support, and zero external tracking.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://rushilbh27.github.io/finish-my-work/">
+  <link rel="icon" type="image/png" href="icons/icon48.png">
+  <link rel="stylesheet" href="landing.css">
+</head>
+
+<body>
+  <!-- Accessible Skip Link -->
+  <a class="skip-link" href="#main-content">Skip to content</a>
+
+  <!-- ── Top Navigation ── -->
+  <header class="site-nav">
+    <div class="wrap nav-inner">
+      <a class="brand" href="#">
+        <span class="brand-dash">—</span>
+        <span class="brand-title">Finish My Work</span>
+      </a>
+      <nav class="nav-links" aria-label="Main Navigation">
+        <a class="nav-link" href="#modes">Modes</a>
+        <a class="nav-link" href="#architecture">Compatibility</a>
+        <a class="nav-link" href="#install">Install</a>
+        <a class="nav-link" href="#faq">FAQ</a>
+        <a class="nav-link" href="https://github.com/rushilbh27/finish-my-work" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+      <a class="nav-btn" href="#install">Install Extension</a>
+    </div>
+  </header>
+
+  <main id="main-content">
+    <!-- ── Hero Section ── -->
+    <section class="hero-section">
+      <div class="wrap hero-grid">
+        <div class="hero-content">
+          <span class="hero-tag">OPEN SOURCE · ZERO TRACKING · MANIFEST V3</span>
+          <h1 class="hero-title">Stop wasting hours on repetitive LMS quizzes.</h1>
+          <p class="hero-lead">
+            Universal autonomous assignment solver for Moodle, Canvas, Blackboard, Google Forms, and IITM Online Degree. Four agent modes. Zero API keys required.
+          </p>
+          <div class="hero-ctas">
+            <a class="btn btn-primary" href="#install">Get the Extension</a>
+            <a class="btn btn-secondary" href="https://github.com/rushilbh27/finish-my-work" target="_blank" rel="noopener">View on GitHub</a>
+          </div>
+          <div class="hero-note">
+            Works in Chrome, Edge, Brave, Arc, and Opera. Local execution only.
+          </div>
+        </div>
+
+        <!-- Interactive Live Simulation Widget -->
+        <div class="interactive-card" id="sim-card" aria-label="Live Autopilot Simulator">
+          <div class="sim-header">
+            <span class="sim-subject">CS 201: DATA STRUCTURES</span>
+            <span class="sim-badge" id="sim-badge">QUIZ #3</span>
+          </div>
+          <div class="sim-question" id="sim-question-text">
+            What is the worst-case time complexity of searching for an element in a balanced Binary Search Tree (AVL / Red-Black)?
+          </div>
+          <div class="sim-options" id="sim-options-list">
+            <div class="sim-opt" data-opt="A">
+              <span class="sim-radio"></span>
+              <span>A. O(n) linear search</span>
+            </div>
+            <div class="sim-opt" data-opt="B" id="opt-correct">
+              <span class="sim-radio"></span>
+              <span>B. O(log n) logarithmic</span>
+            </div>
+            <div class="sim-opt" data-opt="C">
+              <span class="sim-radio"></span>
+              <span>C. O(n log n) linearithmic</span>
+            </div>
+            <div class="sim-opt" data-opt="D">
+              <span class="sim-radio"></span>
+              <span>D. O(1) constant time</span>
+            </div>
+          </div>
+          <div class="sim-actions">
+            <button class="sim-solve-btn" id="btn-run-sim" type="button">
+              ▶ Test Auto-Pilot on this Question
+            </button>
+            <div class="sim-status-box" id="sim-status">
+              <span class="sim-status-dot" id="sim-dot"></span>
+              <span id="sim-status-text">Status: Ready. Click to test solver.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Section: 4 Agent Modes ── -->
+    <section class="section" id="modes">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="section-tag">AUTONOMOUS CAPABILITIES</span>
+          <h2 class="section-title">Four distinct agent modes. One hotkey.</h2>
+          <p class="section-desc">From stealth review to full multi-course automated sweeps across your entire university dashboard.</p>
+        </div>
+
+        <div class="bento-grid">
+          <!-- Bento 1: Large Double Span for Modes -->
+          <div class="bento-card bento-span-8">
+            <span class="bento-badge">AUTOMATION MATRIX</span>
+            <h3>Choose your level of involvement.</h3>
+            <p>Whether you want full human control over every answer or autonomous unattended completion across hundreds of questions.</p>
+            
+            <div class="mode-pills">
+              <div class="mode-pill-item">
+                <div class="mode-pill-title">Mode 1: Draft Only</div>
+                <div class="mode-pill-sub">Selects answers on page silently. Never hits submit. You review before handing in.</div>
+              </div>
+              <div class="mode-pill-item">
+                <div class="mode-pill-title">Mode 2: Full Submit</div>
+                <div class="mode-pill-sub">Solves the quiz, navigates the summary screen, confirms submission dialog, reaches review.</div>
+              </div>
+              <div class="mode-pill-item">
+                <div class="mode-pill-title">Mode 3: Course Batch</div>
+                <div class="mode-pill-sub">Queues and completes every assignment and quiz inside a specific course sequentially.</div>
+              </div>
+              <div class="mode-pill-item">
+                <div class="mode-pill-title">Mode 4: All Courses Sweep</div>
+                <div class="mode-pill-sub">Sweeps your entire LMS dashboard, skipping practice quizzes, completing only graded coursework.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bento 2: Built-in Free AI -->
+          <div class="bento-card bento-span-4 bento-card-amber">
+            <span class="bento-badge">ZERO KEYS NEEDED</span>
+            <h3>Built-In Free AI Engine</h3>
+            <p>No OpenAI credit card or subscription needed. Includes a native free engine that automatically pauses and resumes through 30-second rate-limit cooldowns.</p>
+          </div>
+
+          <!-- Bento 3: IITM Specialist -->
+          <div class="bento-card bento-span-6 bento-card-blue">
+            <span class="bento-badge">PORTAL ARCHITECTURE</span>
+            <h3>IITM Online Degree Portal Specialist</h3>
+            <p>Engineered for <code>seek.onlinedegree.iitm.ac.in</code> with Angular Material 18, LaTeX formula normalization (<code>4x^2 + x</code>), common-context extraction, and Question Palette step navigation.</p>
+          </div>
+
+          <!-- Bento 4: Privacy -->
+          <div class="bento-card bento-span-6 bento-card-dark">
+            <span class="bento-badge">100% PRIVATE</span>
+            <h3>No Server. No Tracking.</h3>
+            <p>Your browser communicates directly with the chosen AI provider. No analytics, no remote telemetry, no third-party logging. Your keys remain stored solely in <code>chrome.storage.local</code>.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Section: Compatibility ── -->
+    <section class="section" id="architecture">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="section-tag">DOM COMPATIBILITY</span>
+          <h2 class="section-title">Tested against real university platforms.</h2>
+          <p class="section-desc">Custom DOM adapters tuned for modern LMS frontend frameworks and question archetypes.</p>
+        </div>
+
+        <div class="bento-grid">
+          <div class="bento-card bento-span-4">
+            <span class="bento-badge">MOODLE &amp; CANVAS</span>
+            <h3>Moodle &amp; Canvas LMS</h3>
+            <p>Extracts <code>.que</code> and <code>.display_question</code> blocks, cleans bullet prefixes, handles paginated 1-question-per-page quizzes, and auto-submits confirmation modals.</p>
+          </div>
+
+          <div class="bento-card bento-span-4">
+            <span class="bento-badge">GOOGLE FORMS</span>
+            <h3>Google Forms</h3>
+            <p>Inspects <code>div[role='listitem']</code>, radio matrices, and checkbox collections without breaking validation.</p>
+          </div>
+
+          <div class="bento-card bento-span-4">
+            <span class="bento-badge">QUESTION TYPES</span>
+            <h3>All Question Formats</h3>
+            <p>Full support for Single Choice (MCQ), Multi-Select (MSQ), Fill-in-the-Blank, Dropdown/Icon Matching, and Numerical Answer Types (NAT).</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Section: Install ── -->
+    <section class="section install-section" id="install">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="section-tag" style="background:#1e293b; color:#38bdf8; border-color:#334155;">INSTALLATION</span>
+          <h2>Install in under two minutes.</h2>
+          <p style="color:#94a3b8;">It takes less than 120 seconds to load unpacked in any Chromium browser.</p>
+        </div>
+
+        <div class="install-steps-grid">
+          <div class="steps-list">
+            <div class="step-row">
+              <span class="step-num">1</span>
+              <div class="step-content">
+                <h4>Clone the repository or download ZIP</h4>
+                <p>Run the git command on the right, or download the ZIP archive from GitHub and extract it.</p>
+              </div>
+            </div>
+
+            <div class="step-row">
+              <span class="step-num">2</span>
+              <div class="step-content">
+                <h4>Open Chrome Extensions</h4>
+                <p>Navigate to <code>chrome://extensions</code> in your browser address bar and enable <strong>Developer mode</strong> in the top-right corner.</p>
+              </div>
+            </div>
+
+            <div class="step-row">
+              <span class="step-num">3</span>
+              <div class="step-content">
+                <h4>Click Load Unpacked</h4>
+                <p>Click the <strong>Load unpacked</strong> button and select the extracted extension directory.</p>
+              </div>
+            </div>
+
+            <div class="step-row">
+              <span class="step-num">4</span>
+              <div class="step-content">
+                <h4>Open Any Quiz &amp; Hit Hotkey</h4>
+                <p>Navigate to your quiz and press <kbd style="background:#334155; color:#fff; padding:2px 5px;">⌘⇧S</kbd> to solve the visible question, or <kbd style="background:#334155; color:#fff; padding:2px 5px;">⌘⇧A</kbd> for Auto-Pilot.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Terminal Snippet -->
+          <div class="terminal-box">
+            <div class="terminal-top">
+              <span class="terminal-title">Terminal</span>
+              <button class="btn-copy" id="btn-copy-cmd" type="button">Copy</button>
+            </div>
+            <pre class="terminal-code" id="term-code"><span class="comment"># Clone the repository</span>
+git clone https://github.com/rushilbh27/finish-my-work.git
+
+<span class="comment"># Open extensions page in Chrome</span>
+chrome://extensions</pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Section: Honest FAQ ── -->
+    <section class="section" id="faq">
+      <div class="wrap">
+        <div class="section-head">
+          <span class="section-tag">CLARITY</span>
+          <h2 class="section-title">Honest answers to real questions.</h2>
+          <p class="section-desc">No corporate fluff. What it can do, what it cannot do, and how it actually runs.</p>
+        </div>
+
+        <div class="faq-list">
+          <div class="faq-item">
+            <button class="faq-question" type="button">
+              <span>Can professors or LMS proctoring detect this extension?</span>
+              <span class="faq-icon">+</span>
+            </button>
+            <div class="faq-answer">
+              The extension includes <strong>Stealth Mode</strong> (<kbd>⌘⇧H</kbd>) which removes the on-screen floating HUD entirely from the page DOM so no floating UI exists on screen. In Mode 1 (Draft Only), it simulates standard native click events directly into form inputs. Note: if a quiz uses full webcam lockdown proctoring or tab-switch tracking software, standard tab-focus rules still apply.
+            </div>
+          </div>
+
+          <div class="faq-item">
+            <button class="faq-question" type="button">
+              <span>Do I need to pay for an API key to use it?</span>
+              <span class="faq-icon">+</span>
+            </button>
+            <div class="faq-answer">
+              No. Finish My Work includes a built-in Free AI Engine out of the box that requires zero keys. If you want ultra-fast 0-second latency, you can optionally paste a free Groq API key (console.groq.com) which grants 30 requests/minute at zero cost.
+            </div>
+          </div>
+
+          <div class="faq-item">
+            <button class="faq-question" type="button">
+              <span>What happens on quizzes with only 1 question per page?</span>
+              <span class="faq-icon">+</span>
+            </button>
+            <div class="faq-answer">
+              The Autopilot engine includes a dedicated paginated navigation detector. It automatically answers the visible question, detects the "Next" / "Next page" navigation button, advances through every page sequentially, and submits once the final review page is reached.
+            </div>
+          </div>
+
+          <div class="faq-item">
+            <button class="faq-question" type="button">
+              <span>What does Mode 4 (All Courses Sweep) actually do?</span>
+              <span class="faq-icon">+</span>
+            </button>
+            <div class="faq-answer">
+              Mode 4 navigates through your university course dashboard. For platforms like IITM Online Degree, it automatically filters out Practice and Ungraded quizzes, only queuing items explicitly marked "Graded", and proceeds through all assignments sequentially.
+            </div>
+          </div>
+
+          <div class="faq-item">
+            <button class="faq-question" type="button">
+              <span>Does it support image-based questions and diagrams?</span>
+              <span class="faq-icon">+</span>
+            </button>
+            <div class="faq-answer">
+              Yes. When questions contain schematics, charts, or images, the background service worker automatically falls back to Groq Llama 3.2 90B Vision or Google Gemini to interpret visual context before choosing answers.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ── Footer ── -->
+  <footer class="site-footer">
+    <div class="wrap footer-inner">
+      <div class="footer-brand">
+        <div class="brand">
+          <span class="brand-dash">—</span>
+          <span class="brand-title">Finish My Work</span>
+        </div>
+        <span class="footer-copy">Built for student productivity. Free and open source under MIT License.</span>
+      </div>
+      <div class="footer-links">
+        <a class="footer-link" href="https://github.com/rushilbh27/finish-my-work" target="_blank" rel="noopener">GitHub</a>
+        <a class="footer-link" href="https://github.com/rushilbh27/finish-my-work/issues" target="_blank" rel="noopener">Report Issue</a>
+        <a class="footer-link" href="https://github.com/rushilbh27/finish-my-work/blob/main/LICENSE" target="_blank" rel="noopener">License</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ── Interactive Simulation & FAQ Script ── -->
+  <script>
+    // 1. Terminal Copy Button
+    const btnCopy = document.getElementById('btn-copy-cmd');
+    if (btnCopy) {
+      btnCopy.addEventListener('click', () => {
+        const cmd = 'git clone https://github.com/rushilbh27/finish-my-work.git';
+        navigator.clipboard.writeText(cmd).then(() => {
+          btnCopy.textContent = 'Copied ✓';
+          setTimeout(() => { btnCopy.textContent = 'Copy'; }, 2000);
+        });
+      });
+    }
+
+    // 2. FAQ Accordion
+    document.querySelectorAll('.faq-question').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const item = btn.closest('.faq-item');
+        const isOpen = item.classList.contains('open');
+        document.querySelectorAll('.faq-item').forEach(i => i.classList.remove('open'));
+        if (!isOpen) item.classList.add('open');
+      });
+    });
+
+    // 3. Interactive Hero Quiz Simulator
+    const btnSim = document.getElementById('btn-run-sim');
+    const simStatusText = document.getElementById('sim-status-text');
+    const simDot = document.getElementById('sim-dot');
+    const optCorrect = document.getElementById('opt-correct');
+    const allOpts = document.querySelectorAll('.sim-opt');
+
+    let isSimulating = false;
+
+    if (btnSim) {
+      btnSim.addEventListener('click', async () => {
+        if (isSimulating) return;
+        isSimulating = true;
+        btnSim.disabled = true;
+
+        // Reset state
+        allOpts.forEach(o => o.classList.remove('correct-choice'));
+        simDot.className = 'sim-status-dot spinning';
+        
+        simStatusText.textContent = 'Scanning question and analyzing DOM...';
+        await new Promise(r => setTimeout(r, 650));
+
+        simStatusText.textContent = 'AI Reasoning: balanced BST search height is log2(n)...';
+        await new Promise(r => setTimeout(r, 750));
+
+        // Highlight correct option
+        optCorrect.classList.add('correct-choice');
+        simDot.className = 'sim-status-dot';
+        simDot.style.background = '#10b981';
+        simStatusText.textContent = 'Selected Option (B): O(log n) ✓ (Confidence: 99.4%)';
+
+        btnSim.textContent = '✓ Solved! Click to Reset';
+        btnSim.disabled = false;
+
+        btnSim.onclick = () => {
+          allOpts.forEach(o => o.classList.remove('correct-choice'));
+          btnSim.textContent = '▶ Test Auto-Pilot on this Question';
+          simStatusText.textContent = 'Status: Ready. Click to test solver.';
+          simDot.style.background = '#10b981';
+          isSimulating = false;
+          btnSim.onclick = null;
+        };
+      });
+    }
+  </script>
+</body>
+
+</html>

@@ -471,9 +471,16 @@ const server = http.createServer((req, res) => {
             document.body.innerHTML = '<h1>Assessment Submitted</h1><p class="state">Complete</p>';
           }
           function nextQuestion() {
-            document.querySelector('.question-text').innerText = 'Question 2: What is the derivative of x^2?';
-            document.querySelector('.circle-btn.active').classList.remove('active');
-            document.querySelectorAll('.circle-btn')[1].classList.add('active');
+            const header = document.querySelector('.q-header');
+            if (header) header.innerHTML = 'Question 5 / 17 <span class="badge">• 1 mark</span> <button class="flag-btn">Flag for review</button>';
+            const qText = document.querySelector('.question-text');
+            if (qText) qText.innerHTML = 'The daily production cost (in lakh ₹) of manufacturing an electric device is p(x) = 7400 - 60x + 15x<sup>2</sup>, where x is the number of electric devices produced per day and the daily transportation cost (in lakh ₹) of x number of electric devices is given by the slope of the function p(x) at point x. If the transportation cost of the electric devices on a particular day is 30 (in lakh ₹), then find the number of transported electric devices.';
+            const opts = document.querySelector('.options');
+            if (opts) opts.innerHTML = '<label>Your answer</label><mat-form-field><textarea matinput class="mat-mdc-input-element" placeholder="Enter your answer"></textarea></mat-form-field><span class="instruction">Only numeric input is accepted for this question.</span>';
+            const active = document.querySelector('.circle-btn.active');
+            if (active) active.classList.remove('active');
+            const btns = document.querySelectorAll('.circle-btn');
+            if (btns[1]) btns[1].classList.add('active');
           }
         </script>
       </body>

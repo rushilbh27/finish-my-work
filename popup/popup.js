@@ -42,7 +42,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // ── Load saved state ──
-  const stored = await chrome.storage.local.get([
+  const hasStorage = typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local;
+  const stored = hasStorage ? await chrome.storage.local.get([
     'aiProvider',
     'groqApiKey',
     'geminiApiKey',
@@ -50,7 +51,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     'extensionEnabled',
     'showFloatingWidget',
     'agentMode'
-  ]);
+  ]) : {};
 
   let isEnabled = stored.extensionEnabled !== false; // default true
   let currentProvider = stored.aiProvider;
@@ -61,7 +62,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // If user entered a Groq key and hasn't chosen another paid provider, default to Groq
   if (stored.groqApiKey?.trim() && (!currentProvider || currentProvider === 'free')) {
     currentProvider = 'groq';
-    chrome.storage.local.set({ aiProvider: 'groq' });
+    chrome?.storage?.local?.set({ aiProvider: 'groq' });
   } else if (!currentProvider) {
     currentProvider = 'free';
   }
@@ -278,25 +279,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Sync real-time state when popup opens
   (async () => {
     try {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (tab?.id) {
-        chrome.tabs.sendMessage(tab.id, { action: 'GET_SOLVER_STATE' }, (res) => {
-          if (!chrome.runtime.lastError && res) {
-            if (res.statusText && res.statusText !== 'Ready') {
-              statusText.textContent = res.statusText;
+      if (window.chrome?.tabs?.query) {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tab?.id) {
+          chrome.tabs.sendMessage(tab.id, { action: 'GET_SOLVER_STATE' }, (res) => {
+            if (!chrome.runtime.lastError && res) {
+              if (res.statusText && res.statusText !== 'Ready') {
+                statusText.textContent = res.statusText;
+              }
+              if (res.isWarning) {
+                statusDot.className = 'status-dot warn';
+              }
+              updateAutoButton(res.isRunning);
             }
-            if (res.isWarning) {
-              statusDot.className = 'status-dot warn';
-            }
-            updateAutoButton(res.isRunning);
-          }
-        });
+          });
+        }
       }
     } catch (e) {}
   })();
 
   // Listen for live updates from content script
-  chrome.runtime.onMessage.addListener((msg) => {
+  chrome?.runtime?.onMessage?.addListener((msg) => {
     if (msg.action === 'SOLVER_STATUS_UPDATE') {
       if (msg.text) {
         statusText.textContent = msg.text;

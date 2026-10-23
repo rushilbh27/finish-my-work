@@ -100,6 +100,15 @@ async function handleAIRequest(request) {
         if (result) return { success: true, text: result, source: 'groq' };
       } catch (e) {
         console.warn('[Autopilot AI] Groq call failed:', e.message);
+        if (e.rateLimited) {
+          return {
+            success: false,
+            rateLimited: true,
+            waitSec: e.waitSec || 7,
+            source: 'groq',
+            error: `Groq rate limit: wait ${e.waitSec || 7}s`
+          };
+        }
         providerErrorNotice = `⚠️ Groq error: ${e.message.slice(0, 32)}. Continuing with Free AI...`;
       }
     } else {
@@ -172,73 +181,86 @@ async function handleAIRequest(request) {
 
 // ── PROVIDER 1: Groq Cloud (Free with Google, 30 RPM, 300 t/s) ──────────
 async function callGroq(apiKey, prompt, imageBase64 = null, system = '') {
-  // If an image is attached (diagram/math formula), prioritize Groq's multimodal vision models
+  // If an image is attached, use Groq vision models; otherwise try 70B then 8B (30,000 TPM limit!) then mixtral
   const models = imageBase64
-    ? ['llama-3.2-11b-vision-preview', 'llama-3.2-90b-vision-preview', 'llama-3.3-70b-versatile', 'llama-3.1-8b-instant']
-    : ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'qwen/qwen3.8-27b', 'openai/gpt-oss-120b'];
+    ? ['llama-3.2-11b-vision-preview', 'llama-3.2-90b-vision-preview']
+    : ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768'];
 
   let lastError = null;
 
   for (const model of models) {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const isVisionModel = model.includes('vision');
-        const userContent = (imageBase64 && isVisionModel)
-          ? [
-              { type: 'text', text: prompt },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:${imageBase64.mimeType || 'image/png'};base64,${imageBase64.data}`
-                }
+    try {
+      const isVisionModel = model.includes('vision');
+      const userContent = (imageBase64 && isVisionModel)
+        ? [
+            { type: 'text', text: prompt },
+            {
+              type: 'image_url',
+              image_url: {
+                url: `data:${imageBase64.mimeType || 'image/png'};base64,${imageBase64.data}`
               }
-            ]
-          : prompt;
+            }
+          ]
+        : prompt;
 
-        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
-          },
-          signal: AbortSignal.timeout(10000),
-          body: JSON.stringify({
-            model: model,
-            messages: [
-              { role: 'system', content: system },
-              { role: 'user', content: userContent }
-            ],
-            temperature: 0.1,
-            max_tokens: 150
-          })
-        });
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        signal: AbortSignal.timeout(12000),
+        body: JSON.stringify({
+          model: model,
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: userContent }
+          ],
+          temperature: 0.1,
+          max_tokens: 150
+        })
+      });
 
-        if (res.status === 429) {
-          // Token rate-limit momentary spike; brief 1.2s pause and retry
-          await new Promise(r => setTimeout(r, 1200));
-          continue;
+      if (res.status === 429) {
+        let waitSec = 7;
+        try {
+          const errJson = await res.json();
+          const errMsg = errJson?.error?.message || '';
+          const match = errMsg.match(/try again in ([\d\.]+)\s*s/i);
+          if (match) waitSec = Math.ceil(parseFloat(match[1]));
+        } catch (e) {
+          const retryHeader = res.headers.get('retry-after');
+          if (retryHeader) waitSec = Math.ceil(parseFloat(retryHeader));
         }
 
-        if (!res.ok) {
-          const errText = await res.text();
-          lastError = new Error(`Groq [${model}] HTTP ${res.status}: ${errText.slice(0, 100)}`);
-          break; // Try next model
-        }
-
-        const data = await res.json();
-        let content = data?.choices?.[0]?.message?.content?.trim();
-        if (content) {
-          if (content.startsWith('{') && content.endsWith('}')) {
-            try {
-              const parsed = JSON.parse(content);
-              content = parsed.answer || parsed.response || parsed.content || content;
-            } catch (e) {}
-          }
-          return content;
-        }
-      } catch (e) {
-        lastError = e;
+        console.warn(`[Groq] Rate limit 429 on model ${model} (wait ${waitSec}s). Trying next model in cascade...`);
+        lastError = new Error(`Groq [${model}] 429 Rate Limit`);
+        lastError.rateLimited = true;
+        lastError.waitSec = waitSec;
+        // Move immediately to next model in cascade (e.g. llama-3.1-8b-instant with 30k TPM)
+        continue;
       }
+
+      if (!res.ok) {
+        const errText = await res.text();
+        lastError = new Error(`Groq [${model}] HTTP ${res.status}: ${errText.slice(0, 100)}`);
+        continue;
+      }
+
+      const data = await res.json();
+      let content = data?.choices?.[0]?.message?.content?.trim();
+      if (content) {
+        if (content.startsWith('{') && content.endsWith('}')) {
+          try {
+            const parsed = JSON.parse(content);
+            content = parsed.answer || parsed.response || parsed.content || content;
+          } catch (e) {}
+        }
+        return content;
+      }
+    } catch (e) {
+      lastError = e;
+      if (e.rateLimited) continue;
     }
   }
 

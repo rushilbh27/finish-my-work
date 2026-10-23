@@ -34,16 +34,16 @@ window.UniversalSolver = {
         'app-question, .question-card, .question-container, .question-wrapper, [class*="question-view"], mat-card, .mat-mdc-card, .question-pane, div[class*="question"]:not([class*="palette"]):not([class*="nav"])'
       )).filter(c => {
         if (c.offsetWidth === 0 || c.offsetHeight === 0) return false;
-        const hasOptions = c.querySelector('mat-radio-group, mat-radio-button, mat-checkbox, [role="radio"], [role="checkbox"], input[type="radio"], input[type="checkbox"], input.mat-mdc-input-element, input[type="text"], input[type="number"]');
+        const hasOptions = c.querySelector('mat-radio-group, mat-radio-button, mat-checkbox, [role="radio"], [role="checkbox"], input[type="radio"], input[type="checkbox"], input.mat-mdc-input-element, textarea.mat-mdc-input-element, textarea, input[type="text"], input[type="number"], mat-form-field');
         const hasHeader = /Question\s+\d+/i.test(c.innerText);
         return hasOptions || hasHeader;
       });
 
-      // Fallback: If no container matched, find the active mat-radio-group or options block
+      // Fallback: If no container matched, find the active options, textarea or input block
       if (containers.length === 0) {
-        const activeOpts = document.querySelector('mat-radio-group, [role="radiogroup"], mat-checkbox, .options-container, .mat-mdc-radio-group');
+        const activeOpts = document.querySelector('mat-radio-group, [role="radiogroup"], mat-checkbox, .options-container, .mat-mdc-radio-group, textarea.mat-mdc-input-element, textarea, mat-form-field, input.mat-mdc-input-element');
         if (activeOpts) {
-          const parent = activeOpts.closest('section, main, .right-pane, .question-container, .mat-typography > div, .app-shell > div') || activeOpts.parentElement;
+          const parent = activeOpts.closest('section, main, .right-pane, .right-col, .question-container, .mat-typography > div, .app-shell > div') || activeOpts.parentElement;
           if (parent) containers = [parent];
         }
       }
@@ -57,7 +57,7 @@ window.UniversalSolver = {
           const parent = ann.closest('mjx-container, .katex, math');
           if (parent) parent.replaceWith(document.createTextNode(` $${ann.textContent}$ `));
         });
-        clone.querySelectorAll('mat-radio-group, .options, .options-container, [role="radiogroup"], button, .flag-btn, [class*="flag"], [class*="clear-selection"], script, style').forEach(el => el.remove());
+        clone.querySelectorAll('mat-radio-group, .options, .options-container, [role="radiogroup"], button, .flag-btn, [class*="flag"], [class*="clear-selection"], textarea, mat-form-field, [class*="your-answer"], script, style').forEach(el => el.remove());
 
         let rawQText = clone.innerText || '';
         rawQText = rawQText
@@ -66,6 +66,8 @@ window.UniversalSolver = {
           .replace(/\d+\s*marks?/gi, '')
           .replace(/Clear Selection/gi, '')
           .replace(/Options\s*$/gi, '')
+          .replace(/Your answer\s*/gi, '')
+          .replace(/Only numeric input is accepted for this question\.?/gi, '')
           .replace(/•\s*/g, '')
           .trim();
 
@@ -170,17 +172,25 @@ window.UniversalSolver = {
           continue;
         }
 
-        // Check C: NAT / Numerical Answer Type (Text/Number Input)
-        const textInput = q.querySelector('input.mat-mdc-input-element, input.mat-input-element, mat-form-field input, input[type="text"], input[type="number"]');
+        // Check C: NAT / Numerical Answer Type or Brief Text (Textarea / Text Input)
+        const textInput = q.querySelector('textarea.mat-mdc-input-element, textarea.mat-input-element, textarea, input.mat-mdc-input-element, input.mat-input-element, mat-form-field textarea, mat-form-field input, input[type="text"], input[type="number"], [contenteditable="true"]') ||
+          (document.querySelectorAll('app-question, .question-card, .question-container').length <= 1 ? document.querySelector('textarea.mat-mdc-input-element, textarea.mat-input-element, textarea, input.mat-mdc-input-element') : null);
         if (textInput) {
+          const containerText = q.innerText || '';
+          const isNAT = 
+            /numeric|numerical|nat\b/i.test(containerText) || 
+            /numeric|numerical|nat\b/i.test(fullText) ||
+            containerText.includes('Only numeric input') ||
+            fullText.includes('Only numeric input');
+
           list.push({
             container: q,
             type: 'text',
-            isNAT: true,
+            isNAT: isNAT,
             text: fullText,
             image: image,
             textInput: textInput,
-            isAnswered: textInput.value.trim().length > 0,
+            isAnswered: (textInput.value || textInput.innerText || '').trim().length > 0,
             isAngularMaterial: true
           });
           continue;
@@ -822,6 +832,7 @@ window.UniversalSolver = {
       const isNextText = (
         txt === 'next' ||
         txt.startsWith('next') ||
+        /\bnext\b/i.test(txt) ||
         txt.includes('next page') ||
         txt.includes('next question') ||
         txt.includes('next section') ||
@@ -850,18 +861,37 @@ window.UniversalSolver = {
     });
   },
 
-  // Locates numbered circular question palette buttons (e.g. 1..17 on IITM / Swayam)
+  // Locates numbered circular question palette elements (e.g. 1..17 on IITM / Swayam)
   findNextPaletteButton() {
-    const paletteButtons = Array.from(document.querySelectorAll(
-      '.question-palette button, .palette button, .question-nav button, [class*="palette"] button, [class*="nav-item"] button, button.circle-btn, button[class*="number"]'
+    // Strategy 1: Header awareness (e.g. "Question 5 / 17")
+    const headerMatch = document.body.innerText.match(/Question\s+(\d+)\s*\/\s*(\d+)/i);
+    let nextTargetNum = null;
+    if (headerMatch) {
+      const cur = parseInt(headerMatch[1], 10);
+      const tot = parseInt(headerMatch[2], 10);
+      if (cur < tot) {
+        nextTargetNum = cur + 1;
+      }
+    }
+
+    const paletteElements = Array.from(document.querySelectorAll(
+      '.question-palette button, .palette button, .question-nav button, [class*="palette"] button, [class*="nav-item"] button, button.circle-btn, button[class*="number"], .question-palette div, .palette div, .question-nav div, [class*="palette"] span, .question-nav span, .circle-btn, button, a'
     )).filter(b => {
+      if (b.offsetWidth === 0 || b.offsetHeight === 0) return false;
+      const rect = b.getBoundingClientRect();
+      if (rect.width > 90 || rect.height > 90) return false;
       const num = parseInt((b.innerText || '').trim(), 10);
-      return !isNaN(num) && num >= 1 && num <= 100 && b.offsetWidth > 0 && b.offsetHeight > 0;
+      return !isNaN(num) && String(num) === (b.innerText || '').trim() && num >= 1 && num <= 100;
     });
 
-    if (paletteButtons.length >= 2) {
+    if (nextTargetNum !== null && paletteElements.length > 0) {
+      const target = paletteElements.find(b => parseInt((b.innerText || '').trim(), 10) === nextTargetNum);
+      if (target) return target;
+    }
+
+    if (paletteElements.length >= 2) {
       // Find active button
-      const activeIdx = paletteButtons.findIndex(b => 
+      const activeIdx = paletteElements.findIndex(b => 
         b.classList.contains('active') || 
         b.classList.contains('current') || 
         b.classList.contains('selected') || 
@@ -869,8 +899,8 @@ window.UniversalSolver = {
         b.getAttribute('aria-selected') === 'true'
       );
 
-      if (activeIdx !== -1 && activeIdx + 1 < paletteButtons.length) {
-        return paletteButtons[activeIdx + 1];
+      if (activeIdx !== -1 && activeIdx + 1 < paletteElements.length) {
+        return paletteElements[activeIdx + 1];
       }
     }
     return null;
@@ -1590,7 +1620,17 @@ window.UniversalSolver = {
           return { success: false, message: 'Invalid AI answer format' };
         }
         q.textInput.focus();
-        q.textInput.value = ans;
+        if (q.textInput.isContentEditable) {
+          q.textInput.innerText = ans;
+        } else {
+          const proto = q.textInput.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+          const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+          if (nativeSetter) {
+            nativeSetter.call(q.textInput, ans);
+          } else {
+            q.textInput.value = ans;
+          }
+        }
         q.textInput.dispatchEvent(new Event('input', { bubbles: true }));
         q.textInput.dispatchEvent(new Event('change', { bubbles: true }));
         q.textInput.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true }));
@@ -1603,7 +1643,8 @@ window.UniversalSolver = {
         return { 
           success: false, 
           rateLimited: !!aiRes?.rateLimited, 
-          waitSec: aiRes?.waitSec || 30, 
+          waitSec: aiRes?.waitSec || 7, 
+          source: aiRes?.source,
           message: aiRes?.error || 'AI call failed' 
         };
       }
@@ -1652,9 +1693,10 @@ window.UniversalSolver = {
         }
 
         if (res.rateLimited) {
-          let waitTime = (res.waitSec || 30) + 1;
+          let waitTime = (res.waitSec || 7) + 1;
+          const prov = res.source ? res.source.toUpperCase() : 'AI';
           while (waitTime > 0 && isRunningCallback()) {
-            updateStatus?.(`⏳ Free AI limit: waiting ${waitTime}s to solve Q${i + 1}... (Add Groq or Gemini key to skip)`);
+            updateStatus?.(`⏳ ${prov} limit: waiting ${waitTime}s to solve Q${i + 1}...`);
             await new Promise(r => setTimeout(r, 1000));
             waitTime--;
           }
@@ -1688,43 +1730,77 @@ window.UniversalSolver = {
   // ══════════════════════════════════════════════════════════════
   async _runDraftMode(updateStatus, isRunningCallback) {
     let pagesProcessed = 0;
+    let consecutiveEmptyCount = 0;
 
     while (isRunningCallback() && pagesProcessed < 50) {
       pagesProcessed++;
-      updateStatus?.(`[Draft] Solving questions on page ${pagesProcessed}…`);
-      const result = await this._solveAllOnPage(updateStatus, isRunningCallback);
+
+      // Check current question & total questions from header (e.g. "Question 5 / 17")
+      const headerMatch = document.body.innerText.match(/Question\s+(\d+)\s*\/\s*(\d+)/i);
+      const currentQNum = headerMatch ? parseInt(headerMatch[1], 10) : pagesProcessed;
+      const totalQNum = headerMatch ? parseInt(headerMatch[2], 10) : null;
+      const label = totalQNum ? `Question ${currentQNum} of ${totalQNum}` : `Page ${pagesProcessed}`;
+
+      updateStatus?.(`[Draft] Scanning ${label}…`);
+      let result = await this._solveAllOnPage(updateStatus, isRunningCallback);
       if (!isRunningCallback()) return;
 
+      // Angular SPA rendering retry
       if (!result.questionsFound) {
-        updateStatus?.('No questions detected on this page.');
+        await new Promise(r => setTimeout(r, 1200));
+        result = await this._solveAllOnPage(updateStatus, isRunningCallback);
+        if (!isRunningCallback()) return;
+      }
+
+      if (!result.questionsFound) {
+        consecutiveEmptyCount++;
+        // If we know there are more questions (e.g. on Question 5 of 17), DO NOT ABORT!
+        if (totalQNum && currentQNum < totalQNum) {
+          updateStatus?.(`⚠️ Q${currentQNum} not resolved. Advancing to Q${currentQNum + 1}…`);
+        } else if (consecutiveEmptyCount >= 2) {
+          updateStatus?.('No questions detected. Auto-pilot finished.');
+          await chrome.storage.local.remove(['autopilotBatchState']);
+          return;
+        }
+      } else {
+        consecutiveEmptyCount = 0;
+        if (!result.allAnswered) {
+          updateStatus?.(`⚠️ ${result.unansweredCount} question(s) pending on ${label}.`);
+        }
+      }
+
+      // If we have answered or scanned the final question, stop cleanly
+      if (totalQNum && currentQNum >= totalQNum) {
         await chrome.storage.local.remove(['autopilotBatchState']);
+        updateStatus?.(`✅ All ${totalQNum} questions drafted! Review and submit manually.`);
         return;
       }
 
-      if (!result.allAnswered) {
-        updateStatus?.(`⚠️ ${result.unansweredCount} question(s) could not be drafted on this page.`);
-      }
-
-      // Check for Next page button or Question Palette button (multi-page quizzes with 1 question per page)
+      // Check for Next page button or Question Palette button
       const nextBtn = this.findNextButton() || this.findNextPaletteButton();
       if (nextBtn) {
-        updateStatus?.(`[Draft] Question ${pagesProcessed} drafted! Advancing…`);
-        const state = {
-          active: true,
-          mode: 'draft'
-        };
+        updateStatus?.(`[Draft] Advancing to next question…`);
+        const state = { active: true, mode: 'draft' };
         await chrome.storage.local.set({ autopilotBatchState: state });
+
         nextBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        await new Promise(r => setTimeout(r, 600));
+        await new Promise(r => setTimeout(r, 500));
         nextBtn.click();
-        // Keyboard fallback for SPA portals like IITM Study
-        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39, bubbles: true }));
-        await new Promise(r => setTimeout(r, 2000));
-        // If single page app (no full reload), continue loop; if full reload, page unloads cleanly
+        
+        // Single-action navigation: wait for SPA DOM transition without firing conflicting key events
+        await new Promise(r => setTimeout(r, 1800));
         continue;
       }
 
-      // No next button found — reached final page of quiz in Draft mode!
+      // Fallback for SPAs that only support keyboard arrows
+      if (totalQNum && currentQNum < totalQNum) {
+        updateStatus?.(`[Draft] Advancing via ArrowRight…`);
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39, bubbles: true }));
+        await new Promise(r => setTimeout(r, 1800));
+        continue;
+      }
+
+      // Reached final page
       await chrome.storage.local.remove(['autopilotBatchState']);
       updateStatus?.('✅ All questions drafted across all pages! Review and submit manually.');
       return;
@@ -1736,6 +1812,7 @@ window.UniversalSolver = {
   // ══════════════════════════════════════════════════════════════
   async _runSubmitMode(updateStatus, isRunningCallback) {
     let pagesProcessed = 0;
+    let consecutiveEmptyCount = 0;
 
     while (isRunningCallback() && pagesProcessed < 50) {
       pagesProcessed++;
@@ -1746,57 +1823,98 @@ window.UniversalSolver = {
         return;
       }
 
-      const result = await this._solveAllOnPage(updateStatus, isRunningCallback);
+      const headerMatch = document.body.innerText.match(/Question\s+(\d+)\s*\/\s*(\d+)/i);
+      const currentQNum = headerMatch ? parseInt(headerMatch[1], 10) : pagesProcessed;
+      const totalQNum = headerMatch ? parseInt(headerMatch[2], 10) : null;
+      const label = totalQNum ? `Question ${currentQNum} of ${totalQNum}` : `Page ${pagesProcessed}`;
+
+      updateStatus?.(`[Submit] Scanning ${label}…`);
+      let result = await this._solveAllOnPage(updateStatus, isRunningCallback);
       if (!isRunningCallback()) return;
 
       if (!result.questionsFound) {
-        // Maybe we're on a review/summary page — look for submit
-        const submitBtn = this.findSubmitButton() || this.findConfirmSubmitButton();
-        if (submitBtn) {
-          updateStatus?.('[Submit] Found submit button on summary page. Submitting…');
-          submitBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          await new Promise(r => setTimeout(r, 600));
-          submitBtn.click();
-          await new Promise(r => setTimeout(r, 3000));
+        await new Promise(r => setTimeout(r, 1200));
+        result = await this._solveAllOnPage(updateStatus, isRunningCallback);
+        if (!isRunningCallback()) return;
+      }
 
-          // Check for confirmation dialog (Moodle asks twice)
-          const confirmBtn = this.findConfirmSubmitButton(submitBtn);
-          if (confirmBtn) {
-            updateStatus?.('[Submit] Confirming final submission…');
-            await new Promise(r => setTimeout(r, 500));
-            confirmBtn.click();
+      if (!result.questionsFound) {
+        consecutiveEmptyCount++;
+        if (totalQNum && currentQNum < totalQNum) {
+          updateStatus?.(`⚠️ Q${currentQNum} not resolved. Advancing…`);
+        } else if (consecutiveEmptyCount >= 2) {
+          // Check for submit button on summary page
+          const submitBtn = this.findSubmitButton() || this.findConfirmSubmitButton();
+          if (submitBtn) {
+            updateStatus?.('[Submit] Found submit button on summary page. Submitting…');
+            submitBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            await new Promise(r => setTimeout(r, 600));
+            submitBtn.click();
             await new Promise(r => setTimeout(r, 3000));
-          }
 
-          if (this.isQuizComplete()) {
-            updateStatus?.('✅ Quiz submitted and complete! 🎉');
-            return;
+            const confirmBtn = this.findConfirmSubmitButton(submitBtn);
+            if (confirmBtn) {
+              updateStatus?.('[Submit] Confirming final submission…');
+              await new Promise(r => setTimeout(r, 500));
+              confirmBtn.click();
+              await new Promise(r => setTimeout(r, 3000));
+            }
+
+            if (this.isQuizComplete()) {
+              updateStatus?.('✅ Quiz submitted and complete! 🎉');
+              return;
+            }
           }
+          updateStatus?.('No questions found. Quiz may already be complete.');
+          return;
+        }
+      } else {
+        consecutiveEmptyCount = 0;
+      }
+
+      // If not on final question, advance
+      const isLastQuestion = totalQNum && currentQNum >= totalQNum;
+      if (!isLastQuestion) {
+        const nextBtn = this.findNextButton() || this.findNextPaletteButton();
+        if (nextBtn) {
+          updateStatus?.(`[Submit] Question ${currentQNum} answered. Advancing…`);
+          nextBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          await new Promise(r => setTimeout(r, 500));
+          nextBtn.click();
+          await new Promise(r => setTimeout(r, 1800));
           continue;
         }
-        updateStatus?.('No questions found. Quiz may already be complete.');
-        return;
+
+        if (totalQNum && currentQNum < totalQNum) {
+          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39, bubbles: true }));
+          await new Promise(r => setTimeout(r, 1800));
+          continue;
+        }
       }
 
-      if (!result.allAnswered) {
-        updateStatus?.(`⚠️ ${result.unansweredCount} question(s) pending. Cannot submit incomplete.`);
-        return;
-      }
+      // Final question reached: Look for submit/finish
+      const submitBtn = this.findSubmitButton();
+      if (submitBtn) {
+        updateStatus?.('[Submit] All questions answered. Submitting assessment…');
+        submitBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        await new Promise(r => setTimeout(r, 800));
+        submitBtn.click();
+        await new Promise(r => setTimeout(r, 3000));
 
-      // All answered on this page — try Next first, then Submit
-      const nextBtn = this.findNextButton() || this.findNextPaletteButton();
-      if (nextBtn) {
-        updateStatus?.(`[Submit] Question ${pagesProcessed} answered. Advancing…`);
-        nextBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        await new Promise(r => setTimeout(r, 600));
-        nextBtn.click();
-        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39, bubbles: true }));
-        await new Promise(r => setTimeout(r, 2000));
+        const confirmBtn = this.findConfirmSubmitButton(submitBtn);
+        if (confirmBtn) {
+          updateStatus?.('[Submit] Confirming final submission…');
+          await new Promise(r => setTimeout(r, 500));
+          confirmBtn.click();
+          await new Promise(r => setTimeout(r, 3000));
+        }
+
+        if (this.isQuizComplete()) {
+          updateStatus?.('✅ Assessment submitted and complete! 🎉');
+          return;
+        }
         continue;
       }
-
-      // No "Next" → Look for submit/finish
-      const submitBtn = this.findSubmitButton();
       if (submitBtn) {
         updateStatus?.('[Submit] All questions answered. Submitting quiz…');
         submitBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
