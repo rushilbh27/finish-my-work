@@ -331,11 +331,11 @@ window.UniversalSolver = {
       document.title.includes('Question Paper') ||
       /onlinedegree\.iitm\.ac\.in|study\.iitm\.ac\.in|seek\.|quizpractice|iitmbs|pyq/i.test(window.location.hostname);
 
-    // Strategy A: Explicit Question Heading Discovery (e.g. 'Question 1: 6406531951224', 'Question 2: ...')
-    const headingElements = Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, div, span, p, b, strong')).filter(el => {
+    // Strategy A: Explicit Question Heading Discovery (e.g. 'Question 8 / 17', 'Question 1: 6406531951224', 'Question 2: ...')
+    const headingElements = Array.from(document.querySelectorAll('.q-header, [class*="q-header"], [class*="question-header"], [class*="question-title"], [class*="question-meta"], h1, h2, h3, h4, h5, div, span, p, b, strong')).filter(el => {
       if (el.closest('#peslms-autopilot-root')) return false;
       const txt = (el.innerText || '').trim();
-      return /^Question\s+\d+\s*[:\.]/i.test(txt) && txt.length < 50;
+      return /^Question\s+\d+(\s*[\/\:.-]|\s+of\b|\s*$)/i.test(txt) && txt.length < 60;
     });
 
     let containers = [];
@@ -356,7 +356,7 @@ window.UniversalSolver = {
           if (hasInputs) {
             let count = 0;
             cur.querySelectorAll('h1, h2, h3, h4, h5, div, span, p, b, strong').forEach(sh => {
-              if (/^Question\s+\d+\s*[:\.]/i.test((sh.innerText || '').trim())) count++;
+              if (/^Question\s+\d+(\s*[\/\:.-]|\s+of\b|\s*$)/i.test((sh.innerText || '').trim())) count++;
             });
             if (count > 1) break;
             best = cur;
@@ -396,6 +396,16 @@ window.UniversalSolver = {
           const hasHeader = /Question\s+\d+|Q\d+/i.test(c.innerText);
           return hasOptions || hasHeader;
         });
+
+        if (containers.length > 1) {
+          // If an outer container contains a question header AND options, discard nested inner children that lack header
+          const filtered = containers.filter(c => {
+            const outerWithHeader = containers.find(other => other !== c && other.contains(c) && /Question\s+\d+/i.test(other.innerText));
+            if (outerWithHeader) return false;
+            return true;
+          });
+          if (filtered.length > 0) containers = filtered;
+        }
       }
 
       // Fallback: If no container matched, find the active options, textarea or input block
@@ -410,11 +420,11 @@ window.UniversalSolver = {
       for (let cIdx = 0; cIdx < containers.length; cIdx++) {
         const q = containers[cIdx];
 
-        let qNum = cIdx + 1;
+        let qNum = (typeof this.extractRealQuestionNumber === 'function' ? this.extractRealQuestionNumber(q) : null) || (cIdx + 1);
         let qLongId = null;
-        let domId = q.id || `question${cIdx + 1}`;
+        let domId = q.id || `question${qNum}`;
 
-        const idMatch = (q.innerText || '').match(/Question\s+(\d+)\s*(?:[:\.]\s*(\d+))?/i);
+        const idMatch = (q.innerText || '').match(/Question\s+(\d+)\s*(?:[\/\:.-]\s*(\d+))?/i);
         if (idMatch) {
           if (idMatch[1]) qNum = parseInt(idMatch[1]);
           if (idMatch[2]) qLongId = idMatch[2];
@@ -423,6 +433,8 @@ window.UniversalSolver = {
           qNum = parseInt(q.id.match(/^question(\d+)$/i)[1]);
           domId = q.id;
         }
+        const realNum = (typeof this.extractRealQuestionNumber === 'function' ? this.extractRealQuestionNumber(q) : null);
+        if (realNum) qNum = realNum;
 
         // Extract mathematical formatting (LaTeX / MathML / KaTeX / superscripts)
         const clone = q.cloneNode(true);
@@ -1163,6 +1175,65 @@ window.UniversalSolver = {
     return list;
   },
 
+  // Extract real active question number from top palette, question header or page state
+  extractRealQuestionNumber(container = null) {
+    try {
+      // 1. If a specific question container is provided, check its local heading, .qno, or id first
+      if (container) {
+        const qno = container.querySelector('.qno, .question-number, [class*="qno"]');
+        if (qno) {
+          const num = parseInt((qno.innerText || '').trim());
+          if (!isNaN(num) && num > 0) return num;
+        }
+
+        const localHeader = container.querySelector('.q-header, [class*="q-header"], [class*="question-header"], [class*="question-title"], h1, h2, h3, h4, h5');
+        if (localHeader) {
+          const m = (localHeader.innerText || '').match(/Question\s+(\d+)\s*(?:\/\s*\d+|\s+of\s+\d+|[:\.-]|\s*$)/i);
+          if (m && m[1]) return parseInt(m[1]);
+        }
+
+        if (container.id) {
+          const m = container.id.match(/(?:question|q)[-_]?(\d+)$/i);
+          if (m && m[1]) return parseInt(m[1]);
+        }
+      }
+
+      // 2. Search for explicit question header element across the document (.q-header, Question X / Y)
+      const headerEls = document.querySelectorAll(
+        '.q-header, [class*="q-header"], [class*="question-header"], [class*="question-title"], [class*="question-meta"], [class*="question-num"], h1, h2, h3, h4, h5'
+      );
+      for (const h of headerEls) {
+        if (h.closest('#peslms-autopilot-root')) continue;
+        const txt = (h.innerText || '').trim();
+        const m = txt.match(/Question\s+(\d+)\s*(?:\/\s*\d+|\s+of\s+\d+|[:\.-]|\s*$)/i);
+        if (m && m[1]) {
+          const num = parseInt(m[1]);
+          if (!isNaN(num) && num > 0) return num;
+        }
+      }
+
+      // 3. Check top question palette active button (most reliable on SPAs like IITM / Angular)
+      const activePaletteBtn = document.querySelector(
+        '.palette .circle-btn.active, .palette .active, [class*="palette"] .active, [class*="palette"] [aria-current="true"], [class*="palette"] [aria-current="page"], [class*="palette"] [aria-current="step"], button.active[aria-current], button.circle-btn.active, .question-nav .circle-btn.active, .circle-btn.active, .circle-btn[aria-current="true"], .palette button.selected, .palette [class*="selected"]'
+      );
+      if (activePaletteBtn) {
+        const raw = (activePaletteBtn.innerText || activePaletteBtn.getAttribute('data-index') || '').trim();
+        const num = parseInt(raw);
+        if (!isNaN(num) && num > 0) return num;
+      }
+
+      // 4. Global match on document body for "Question X / Y" or "Question X of Y"
+      const bodyText = (document.body?.innerText || '');
+      const bodyMatch = bodyText.match(/\bQuestion\s+(\d+)\s*(?:\/|\s+of\b)\s*\d+/i);
+      if (bodyMatch && bodyMatch[1]) {
+        const num = parseInt(bodyMatch[1]);
+        if (!isNaN(num) && num > 0) return num;
+      }
+    } catch (e) {}
+
+    return null;
+  },
+
   // Returns question in view or first unanswered
   detectCurrentQuestion() {
     const all = this.detectAllQuestions();
@@ -1187,7 +1258,11 @@ window.UniversalSolver = {
         }
       }
     });
-    if (bestUnanswered) return bestUnanswered;
+    if (bestUnanswered) {
+      const realNum = this.extractRealQuestionNumber(bestUnanswered.container);
+      if (realNum) bestUnanswered.questionNum = realNum;
+      return bestUnanswered;
+    }
 
     // Second try: ANY question currently in viewport (closest to viewport center)
     let bestVisible = null;
@@ -1203,13 +1278,24 @@ window.UniversalSolver = {
         }
       }
     });
-    if (bestVisible) return bestVisible;
+    if (bestVisible) {
+      const realNum = this.extractRealQuestionNumber(bestVisible.container);
+      if (realNum) bestVisible.questionNum = realNum;
+      return bestVisible;
+    }
 
     // Third try: first unanswered question anywhere on the page
     const unanswered = all.find(q => !q.isAnswered);
-    if (unanswered) return unanswered;
+    if (unanswered) {
+      const realNum = this.extractRealQuestionNumber(unanswered.container);
+      if (realNum) unanswered.questionNum = realNum;
+      return unanswered;
+    }
 
-    return all[0];
+    const first = all[0];
+    const realNum = this.extractRealQuestionNumber(first?.container);
+    if (realNum && first) first.questionNum = realNum;
+    return first;
   },
 
   // Locates the Start / Attempt Quiz button on landing pages (view.php, IITM landing page)
@@ -1648,6 +1734,10 @@ window.UniversalSolver = {
   async solveQuestionItem(q, updateStatus) {
     if (!q) return { success: false, message: 'Invalid question' };
 
+    // Dynamically update real question number
+    const realNum = this.extractRealQuestionNumber(q.container);
+    if (realNum) q.questionNum = realNum;
+
     q.container?.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
     // STEP 0: Check for verified answer from Inertia data-page or LMS page state
@@ -1977,36 +2067,84 @@ window.UniversalSolver = {
       }
 
       let checkedCount = 0;
-      q.options.forEach((opt, idx) => {
+      for (let idx = 0; idx < q.options.length; idx++) {
+        const opt = q.options[idx];
         const letter = String.fromCharCode(65 + idx);
         const shouldBeChecked = aiRes.letters.includes(letter) || aiRes.letters.includes(opt.letter?.toUpperCase());
 
-        const inputEl = opt.element && opt.element.tagName === 'INPUT' ? opt.element : opt.element?.querySelector('input[type="checkbox"]');
-        const roleCheckbox = opt.element?.getAttribute('role') === 'checkbox' ? opt.element : opt.element?.querySelector('[role="checkbox"]');
+        // Locate all possible interactable handles for this checkbox option (Angular MDC, generic, HTML)
+        const baseEl = opt.element || opt.labelEl;
+        const matCheckbox = baseEl?.closest('mat-checkbox, .mat-mdc-checkbox') || opt.labelEl?.closest('mat-checkbox, .mat-mdc-checkbox');
+        const hostEl = matCheckbox ||
+                       baseEl?.closest('[role="checkbox"], .quiz-option, li, label, .checkbox, .mdc-checkbox') ||
+                       opt.labelEl?.closest('[role="checkbox"], label') ||
+                       baseEl;
+        const inputEl = (baseEl?.tagName === 'INPUT' ? baseEl : null) ||
+                        hostEl?.querySelector('input[type="checkbox"]') ||
+                        opt.labelEl?.querySelector('input[type="checkbox"]') ||
+                        (opt.id ? document.querySelector(`input[id="${opt.id}"]`) : null);
+        const labelEl = opt.labelEl ||
+                        hostEl?.querySelector('label, .mdc-label') ||
+                        (inputEl?.id ? document.querySelector(`label[for="${inputEl.id}"]`) : null) ||
+                        hostEl;
 
-        if (inputEl) {
-          if (inputEl.checked !== shouldBeChecked) {
-            inputEl.focus();
-            inputEl.click();
-            if (inputEl.checked !== shouldBeChecked) {
-              inputEl.checked = shouldBeChecked;
-              inputEl.dispatchEvent(new Event('input', { bubbles: true }));
-              inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+        const checkCurrent = () => {
+          return (inputEl && inputEl.checked) ||
+                 hostEl?.classList.contains('mat-mdc-checkbox-checked') ||
+                 hostEl?.classList.contains('mat-checkbox-checked') ||
+                 matCheckbox?.classList.contains('mat-mdc-checkbox-checked') ||
+                 hostEl?.getAttribute('aria-checked') === 'true' ||
+                 hostEl?.getAttribute('data-state') === 'checked' ||
+                 labelEl?.classList.contains('selected') ||
+                 labelEl?.classList.contains('active');
+        };
+
+        let isChecked = checkCurrent();
+
+        if (isChecked !== shouldBeChecked) {
+          // Candidates to click in priority order:
+          // In MDC/Angular Material, clicking the label or hostEl triggers the component controller
+          const clickTargets = [labelEl, hostEl, matCheckbox, inputEl].filter(Boolean);
+          const uniqueTargets = [...new Set(clickTargets)];
+
+          for (const target of uniqueTargets) {
+            try { target.focus?.(); } catch (e) {}
+            const evts = ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'];
+            for (const evtName of evts) {
+              try {
+                target.dispatchEvent(new MouseEvent(evtName, { bubbles: true, cancelable: true, view: window }));
+              } catch (e) {}
             }
+            try { target.click?.(); } catch (e) {}
+
+            // Check if state flipped
+            isChecked = checkCurrent();
+            if (isChecked === shouldBeChecked) break;
           }
-          if (shouldBeChecked) checkedCount++;
-        } else if (roleCheckbox) {
-          const isAriaChecked = roleCheckbox.getAttribute('aria-checked') === 'true' || roleCheckbox.getAttribute('data-state') === 'checked';
-          if (isAriaChecked !== shouldBeChecked) {
-            roleCheckbox.focus();
-            roleCheckbox.click();
-            ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach(evt => {
-              roleCheckbox.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window }));
-            });
+
+          // Fallback if UI did not flip state automatically: force input state and dispatch events
+          if (inputEl && inputEl.checked !== shouldBeChecked) {
+            inputEl.checked = shouldBeChecked;
+            inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+            inputEl.dispatchEvent(new Event('change', { bubbles: true }));
           }
-          if (shouldBeChecked) checkedCount++;
+
+          // Visual class syncing for Angular Material / custom CSS
+          const allHosts = [matCheckbox, hostEl].filter(Boolean);
+          allHosts.forEach(mh => {
+            if (shouldBeChecked) {
+              mh.classList.add('mat-mdc-checkbox-checked', 'mat-checkbox-checked');
+              mh.setAttribute('aria-checked', 'true');
+            } else {
+              mh.classList.remove('mat-mdc-checkbox-checked', 'mat-checkbox-checked');
+              mh.setAttribute('aria-checked', 'false');
+            }
+          });
         }
-      });
+
+        if (checkCurrent() || shouldBeChecked) checkedCount++;
+        await new Promise(r => setTimeout(r, 60));
+      }
 
       q.isAnswered = true;
       q.container.style.transition = 'box-shadow 0.3s ease';
@@ -2266,6 +2404,9 @@ window.UniversalSolver = {
       updateStatus?.('Could not detect question.');
       return { success: false, message: 'Could not detect question.' };
     }
+    const realNum = this.extractRealQuestionNumber(currentQ.container);
+    if (realNum) currentQ.questionNum = realNum;
+
     const res = await this.solveQuestionItem(currentQ, updateStatus);
     if (res && currentQ.questionNum !== undefined) {
       res.questionNum = currentQ.questionNum;
@@ -2287,17 +2428,20 @@ window.UniversalSolver = {
     for (let i = 0; i < questions.length; i++) {
       if (!isRunningCallback()) return { questionsFound: true, allAnswered: false, stopped: true };
       const q = questions[i];
+      const qNum = this.extractRealQuestionNumber(q.container) || q.questionNum || (i + 1);
+      q.questionNum = qNum;
+
       if (q.isAnswered) continue;
 
       // Active live check: If question already has answer in DOM, don't call AI or waste tokens!
       if (q.textInput && (q.textInput.value || q.textInput.innerText || '').trim().length > 0) {
         q.isAnswered = true;
-        updateStatus?.(`Q${i + 1} already answered. Advancing…`);
+        updateStatus?.(`Q${qNum} already answered. Advancing…`);
         continue;
       }
       if (q.options && q.options.some(o => o.element?.checked || o.element?.getAttribute('aria-checked') === 'true' || o.labelEl?.closest('.mat-radio-checked, .mat-mdc-radio-checked'))) {
         q.isAnswered = true;
-        updateStatus?.(`Q${i + 1} choice already selected. Advancing…`);
+        updateStatus?.(`Q${qNum} choice already selected. Advancing…`);
         continue;
       }
 
@@ -2306,7 +2450,7 @@ window.UniversalSolver = {
 
       while (!answered && isRunningCallback() && attempts < 2) {
         attempts++;
-        updateStatus?.(`Solving question ${i + 1} of ${questions.length}...`);
+        updateStatus?.(`Solving question ${qNum} of ${questions.length}...`);
         const res = await this.solveQuestionItem(q, updateStatus);
 
         if (res.success) {
@@ -2319,7 +2463,7 @@ window.UniversalSolver = {
           let waitTime = Math.min(res.waitSec || 5, 10);
           const prov = res.source ? res.source.toUpperCase() : 'AI';
           while (waitTime > 0 && isRunningCallback()) {
-            updateStatus?.(`⏳ ${prov} limit: waiting ${waitTime}s to solve Q${i + 1}...`);
+            updateStatus?.(`⏳ ${prov} limit: waiting ${waitTime}s to solve Q${qNum}...`);
             await new Promise(r => setTimeout(r, 1000));
             waitTime--;
           }
@@ -2345,18 +2489,18 @@ window.UniversalSolver = {
         }
 
         if (res.message && (res.message.includes('Unsupported') || res.message.includes('Could not match'))) {
-          updateStatus?.(`⚠️ Q${i + 1}: ${res.message}. Skipping to next…`);
+          updateStatus?.(`⚠️ Q${qNum}: ${res.message}. Skipping to next…`);
           q.isAnswered = true;
           q.skipped = true;
           break;
         }
 
         if (attempts >= 2) {
-          updateStatus?.(`⚠️ Q${i + 1} unresolved. Auto-Pilot paused.`);
+          updateStatus?.(`⚠️ Q${qNum} unresolved. Auto-Pilot paused.`);
           return { questionsFound: true, allAnswered: false, stopped: true };
         }
 
-        updateStatus?.(`Retrying Q${i + 1}... (${(res.message || 'error').slice(0, 30)})`);
+        updateStatus?.(`Retrying Q${qNum}... (${(res.message || 'error').slice(0, 30)})`);
         await new Promise(r => setTimeout(r, 1200));
       }
 
