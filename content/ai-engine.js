@@ -225,19 +225,35 @@ window.AIEngine = {
       imageBase64 = await this.imageToBase64(imgElement);
     }
 
+    const isTwoDecimal = /2\s*decimal|two\s*decimal/i.test(questionText) || /2\s*decimal|two\s*decimal/i.test(portalHint);
+
     const prompt = `CRITICAL TASK: NUMERICAL ANSWER TYPE (NAT) QUESTION.\n\n` +
-      `Question:\n"${questionText}"\n\n` +
+      `Question Problem Statement:\n"${questionText}"\n\n` +
       (portalHint ? `SYSTEM CONSTRAINTS & PORTAL HINTS:\n${portalHint}\nYou MUST strictly adhere to this format!\n\n` : '') +
       (imageBase64 ? `Note: An image containing mathematical equations, matrices, or diagrams is attached. Read all symbols and coefficients carefully.\n\n` : '') +
-      `INSTRUCTIONS:\n` +
-      `1. Perform rigorous step-by-step mathematical reasoning to solve the problem accurately.\n` +
-      `2. Compute the exact final value (algebraic simplification, arithmetic, calculus, geometry, or graph properties).\n` +
-      `3. On the very last line, write ONLY the final computed number (e.g., "-2", "4", "0.75", "12"). No words, no units, no variable names on that line.`;
+      `INSTRUCTIONS FOR MAXIMUM ACADEMIC ACCURACY:\n` +
+      `1. TABULAR & DATA INTERPRETATION:\n` +
+      `   - Carefully read the rows, columns, and headers of any data table or reference text.\n` +
+      `   - In contingency / classification tables, match the exact cell corresponding to the row and column specified in the question.\n\n` +
+      `2. CONDITIONAL PROPORTION & PROBABILITY (CRITICAL RULE):\n` +
+      `   - If asked "What proportion/percentage of [Group X] are [Category Y]?", the DENOMINATOR is ALWAYS the TOTAL of [Group X] (NOT the overall grand total)!\n` +
+      `   - Example: "proportion of students of good economic conditions that are borderline" -> Denominator is total students in good economic conditions.\n` +
+      `   - Example: "percentage of average students that are in good economic conditions" -> Denominator is total average students.\n` +
+      `   - If asked for "percentage", multiply the fraction by 100 (e.g. 51.61, NOT 0.52).\n` +
+      `   - If asked for "proportion" or "probability", leave as a decimal value between 0 and 1 (e.g. 0.37, NOT 37%).\n\n` +
+      `3. CORRELATION & REGRESSION:\n` +
+      `   - Compute Pearson's correlation coefficient r accurately from data pairs (x, y) using r = [N*sum(xy) - sum(x)*sum(y)] / sqrt([N*sum(x^2) - (sum(x))^2] * [N*sum(y^2) - (sum(y))^2]).\n\n` +
+      `4. ROUNDING & ACCURACY:\n` +
+      (isTwoDecimal ? `   - The problem explicitly requires 2 decimal accuracy. Compute precisely and round to exactly 2 decimal places (e.g., 51.61, 49.50, 0.37, 0.22, 0.47, -0.12).\n\n` : `   - Compute the exact final value and adhere to any precision instructions in the prompt.\n\n`) +
+      `5. FINAL CONCLUSION FORMAT:\n` +
+      `   - Show step-by-step arithmetic and formula evaluation.\n` +
+      `   - On the very last line, output ONLY the final answer formatted as:\n` +
+      `FINAL_VALUE: <number>`;
 
     const result = await this.generateAnswer(
       prompt,
       imageBase64,
-      'You are an expert academic STEM exam solver. Solve the math accurately with step-by-step reasoning, then provide ONLY the raw final numerical value on the final line.'
+      'You are an expert academic STEM exam solver. Solve the math accurately with step-by-step reasoning. Conclude on the final line with FINAL_VALUE: <number>.'
     );
 
     if (result?.success && result.text) {
@@ -252,20 +268,36 @@ window.AIEngine = {
         } catch (e) {}
       }
 
-      // 1. Check from bottom line up for standalone exact number line
+      // 1. Check for explicit FINAL_VALUE: <num>
+      const fvMatch = clean.match(/FINAL_VALUE\s*[:=\-]\s*([-+]?[0-9]+(?:\.[0-9]+)?)/i);
+      if (fvMatch) {
+        let val = fvMatch[1];
+        if (isTwoDecimal && !isNaN(parseFloat(val))) {
+          val = parseFloat(val).toFixed(2);
+        }
+        return { success: true, text: val, warningNotice: result.warningNotice };
+      }
+
+      // 2. Check from bottom line up for standalone exact number line
       const lines = clean.split('\n').map(l => l.trim()).filter(Boolean);
       for (let i = lines.length - 1; i >= 0; i--) {
         let stripped = lines[i].replace(/^[a-zA-Z_]\s*=\s*/, '').replace(/^(?:the\s+)?(?:final\s+)?(?:value\s+of\s+[a-zA-Z_]+\s+is|answer\s*is|answer:)\s*/i, '').trim();
         if (/^[-+]?[0-9]+(?:\.[0-9]+)?$/.test(stripped)) {
+          if (isTwoDecimal && !isNaN(parseFloat(stripped))) {
+            stripped = parseFloat(stripped).toFixed(2);
+          }
           return { success: true, text: stripped, warningNotice: result.warningNotice };
         }
       }
 
-      // 2. Extract the last valid number in the text (the final conclusion)
+      // 3. Extract the last valid number in the text (the final conclusion)
       const allNums = Array.from(clean.matchAll(/[-+]?[0-9]+(?:\.[0-9]+)?/g)).map(m => m[0]);
       if (allNums.length > 0) {
         let lastVal = allNums[allNums.length - 1];
         if (lastVal.endsWith('.')) lastVal = lastVal.slice(0, -1);
+        if (isTwoDecimal && !isNaN(parseFloat(lastVal))) {
+          lastVal = parseFloat(lastVal).toFixed(2);
+        }
         return { success: true, text: lastVal, warningNotice: result.warningNotice };
       }
 
@@ -406,7 +438,7 @@ window.AIEngine = {
     const lines = clean.trim().split('\n').map(l => l.trim()).filter(l => l.length > 0);
     for (let idx = lines.length - 1; idx >= Math.max(0, lines.length - 3); idx--) {
       const line = lines[idx];
-      if (/(?:therefore|hence|correct|answers?|options?|select|choices?)/i.test(line) || /^[A-E\s,\.\[\]\(\)\&]+$/i.test(line)) {
+      if (/(?:therefore|hence|correct|answers?|options?|select|choices?)/i.test(line) || /^[A-Z\s,\.\[\]\(\)\&]+$/i.test(line)) {
         if (!/(?:are\s+false|is\s+false|are\s+incorrect|is\s+incorrect)/i.test(line)) {
           const letters = (line.match(/\b([A-Z])\b/g) || []).map(l => l.toUpperCase()).filter(l => validLetters.has(l));
           if (letters.length > 0) return Array.from(new Set(letters)).sort();

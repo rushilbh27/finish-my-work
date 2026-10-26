@@ -319,6 +319,63 @@ window.UniversalSolver = {
   },
 
   // Detect all questions on the current page across multiple LMS platforms
+    formatContainerText(el) {
+    if (!el) return '';
+    const clone = el.cloneNode(true);
+
+    // Math formulas (LaTeX / KaTeX / MathML / superscripts / subscripts)
+    clone.querySelectorAll('sup').forEach(subEl => { subEl.textContent = '^' + subEl.textContent; });
+    clone.querySelectorAll('sub').forEach(subEl => { subEl.textContent = '_' + subEl.textContent; });
+    clone.querySelectorAll('annotation[encoding*="tex"], annotation[encoding*="TeX"]').forEach(ann => {
+      const parent = ann.closest('mjx-container, .katex, math');
+      if (parent) parent.replaceWith(document.createTextNode(' $' + ann.textContent + '$ '));
+    });
+    clone.querySelectorAll('math, mjx-container, .katex').forEach(m => {
+      const ann = m.querySelector('annotation');
+      if (ann) m.replaceWith(document.createTextNode(' $' + ann.textContent + '$ '));
+    });
+
+    // Format HTML <table> elements into structured Markdown tables
+    clone.querySelectorAll('table').forEach(table => {
+      const rows = Array.from(table.querySelectorAll('tr'));
+      if (rows.length === 0) return;
+      const tableLines = [];
+      let maxCols = 0;
+      const parsedRows = rows.map(tr => {
+        const cells = Array.from(tr.querySelectorAll('th, td')).map(c => 
+          (c.innerText || c.textContent || '').trim().replace(/\|/g, '\\|').replace(/\s+/g, ' ')
+        );
+        if (cells.length > maxCols) maxCols = cells.length;
+        return cells;
+      }).filter(cells => cells.length > 0);
+
+      parsedRows.forEach((cells, rIdx) => {
+        while (cells.length < maxCols) cells.push('');
+        tableLines.push('| ' + cells.join(' | ') + ' |');
+        if (rIdx === 0) {
+          tableLines.push('| ' + cells.map(() => '---').join(' | ') + ' |');
+        }
+      });
+
+      if (tableLines.length > 0) {
+        const mdTable = '\n\n' + tableLines.join('\n') + '\n\n';
+        table.replaceWith(document.createTextNode(mdTable));
+      }
+    });
+
+    // Remove buttons, clear-selection links, scripts, flags
+    clone.querySelectorAll('button, .flag-btn, [class*="flag"], [class*="clear-selection"], mat-radio-group, .options, .options-container, [role="radiogroup"], textarea, mat-form-field, [class*="your-answer"], script, style').forEach(subEl => subEl.remove());
+
+    let text = clone.innerText || clone.textContent || '';
+    text = text
+      .split('\n')
+      .map(line => line.replace(/[ \t]+/g, ' ').trim())
+      .filter((line, i, arr) => line.length > 0 || (i > 0 && arr[i - 1].length > 0))
+      .join('\n');
+
+    return text.trim();
+  },
+
   detectAllQuestions() {
     const list = [];
 
@@ -383,7 +440,7 @@ window.UniversalSolver = {
         );
       });
       if (commonCandidate) {
-        iitmCommonContext = commonCandidate.innerText.replace(/\s+/g, ' ').trim();
+        iitmCommonContext = this.formatContainerText(commonCandidate);
       }
 
       // Strategy B: LMS & Angular Question Containers
@@ -456,7 +513,8 @@ window.UniversalSolver = {
         });
         clone.querySelectorAll('mat-radio-group, .options, .options-container, [role="radiogroup"], button, .flag-btn, [class*="flag"], [class*="clear-selection"], textarea, mat-form-field, [class*="your-answer"], script, style').forEach(el => el.remove());
 
-        let rawQText = clone.innerText || '';
+        // Format question container with table and math support
+        let rawQText = this.formatContainerText(q);
         rawQText = rawQText
           .replace(/Question\s+\d+\s*(?:[:\.]\s*\d+)?/gi, '')
           .replace(/Total\s*Marks?\s*:\s*[0-9\.]+\s*\|\s*Type\s*:\s*[A-Z]+/gi, '')
@@ -518,9 +576,9 @@ window.UniversalSolver = {
               labelText = (r.innerText || r.getAttribute('aria-label') || '').trim();
             }
 
-            const letterMatch = labelText.match(/^([A-D])[\.\)\:\-]\s*/i);
+            const letterMatch = labelText.match(/^([A-Za-z])[\.\)\:\-]\s*/i);
             const letter = letterMatch ? letterMatch[1].toUpperCase() : String.fromCharCode(65 + i);
-            const cleanText = labelText.replace(/^[A-D][\.\)\:\-]\s*/i, '').trim();
+            const cleanText = labelText.replace(/^[A-Za-z][\.\)\:\-]\s*/i, '').trim();
 
             const liParent = r.closest('li, [class*="option"]');
             const isChecked = (innerInput && innerInput.checked) || 
@@ -595,9 +653,9 @@ window.UniversalSolver = {
               labelText = (c.innerText || c.getAttribute('aria-label') || '').trim();
             }
 
-            const letterMatch = labelText.match(/^([A-D])[\.\)\:\-]\s*/i);
+            const letterMatch = labelText.match(/^([A-Za-z])[\.\)\:\-]\s*/i);
             const letter = letterMatch ? letterMatch[1].toUpperCase() : String.fromCharCode(65 + i);
-            const cleanText = labelText.replace(/^[A-D][\.\)\:\-]\s*/i, '').trim();
+            const cleanText = labelText.replace(/^[A-Za-z][\.\)\:\-]\s*/i, '').trim();
 
             const isChecked = (innerInput && innerInput.checked) || 
                               c.classList.contains('mat-mdc-checkbox-checked') || 
@@ -2587,23 +2645,26 @@ window.UniversalSolver = {
         nextBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
         await new Promise(r => setTimeout(r, 300));
         
-        // Full event cascade for Angular Material 18 & web components
+        // Clean single click on next button without triggering double keyboard advances
         const innerTarget = nextBtn.querySelector('.mdc-button__label, .mat-mdc-button-touch-target') || nextBtn;
-        ['pointerdown', 'mousedown', 'mouseup', 'click'].forEach(evt => {
-          try {
-            innerTarget.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window }));
-            if (nextBtn !== innerTarget) {
-              nextBtn.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window }));
-            }
-          } catch (e) {}
-        });
-        try { nextBtn.click(); } catch (e) {}
+        try { innerTarget.focus?.(); } catch (e) {}
+        try { innerTarget.click?.(); } catch (e) {}
+        if (nextBtn !== innerTarget) {
+          try { nextBtn.focus?.(); } catch (e) {}
+          try { nextBtn.click?.(); } catch (e) {}
+        }
 
-        // For SPAs (like IITM) supporting keyboard arrows ("Use arrows ← and →")
-        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39, bubbles: true }));
-        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39, bubbles: true }));
-
-        await new Promise(r => setTimeout(r, 1600));
+        // Wait for SPA to transition question cleanly without jumping
+        const startQNum = currentQNum;
+        let navWaited = 0;
+        while (navWaited < 2500 && isRunningCallback()) {
+          await new Promise(r => setTimeout(r, 150));
+          navWaited += 150;
+          const currentHeader = document.body.innerText.match(/Question\s+(\d+)\s*(?:\/|\bof\b)\s*(\d+)/i);
+          const newQNum = currentHeader ? parseInt(currentHeader[1], 10) : startQNum;
+          if (newQNum > startQNum) break;
+        }
+        await new Promise(r => setTimeout(r, 400));
         continue;
       }
 
@@ -2626,8 +2687,16 @@ window.UniversalSolver = {
 
         updateStatus?.(`[Draft] Advancing to Q${currentQNum + 1}…`);
         window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39, bubbles: true }));
-        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39, bubbles: true }));
-        await new Promise(r => setTimeout(r, 1600));
+        const startQNum = currentQNum;
+        let navWaited = 0;
+        while (navWaited < 2500 && isRunningCallback()) {
+          await new Promise(r => setTimeout(r, 150));
+          navWaited += 150;
+          const currentHeader = document.body.innerText.match(/Question\s+(\d+)\s*(?:\/|\bof\b)\s*(\d+)/i);
+          const newQNum = currentHeader ? parseInt(currentHeader[1], 10) : startQNum;
+          if (newQNum > startQNum) break;
+        }
+        await new Promise(r => setTimeout(r, 400));
 
         const postMatch = document.body.innerText.match(/Question\s+(\d+)\s*(?:\/|\bof\b)\s*(\d+)/i);
         const postQNum = postMatch ? parseInt(postMatch[1], 10) : currentQNum;
@@ -2734,21 +2803,23 @@ window.UniversalSolver = {
           await new Promise(r => setTimeout(r, 300));
           
           const innerTarget = nextBtn.querySelector('.mdc-button__label, .mat-mdc-button-touch-target') || nextBtn;
-          ['pointerdown', 'mousedown', 'mouseup', 'click'].forEach(evt => {
-            try {
-              innerTarget.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window }));
-              if (nextBtn !== innerTarget) {
-                nextBtn.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window }));
-              }
-            } catch (e) {}
-          });
-          try { nextBtn.click(); } catch (e) {}
+          try { innerTarget.focus?.(); } catch (e) {}
+          try { innerTarget.click?.(); } catch (e) {}
+          if (nextBtn !== innerTarget) {
+            try { nextBtn.focus?.(); } catch (e) {}
+            try { nextBtn.click?.(); } catch (e) {}
+          }
 
-          // For SPAs (like IITM) supporting keyboard arrows ("Use arrows ← and →")
-          window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39, bubbles: true }));
-          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39, bubbles: true }));
-
-          await new Promise(r => setTimeout(r, 1600));
+          const startQNum = currentQNum;
+          let navWaited = 0;
+          while (navWaited < 2500 && isRunningCallback()) {
+            await new Promise(r => setTimeout(r, 150));
+            navWaited += 150;
+            const currentHeader = document.body.innerText.match(/Question\s+(\d+)\s*(?:\/|\bof\b)\s*(\d+)/i);
+            const newQNum = currentHeader ? parseInt(currentHeader[1], 10) : startQNum;
+            if (newQNum > startQNum) break;
+          }
+          await new Promise(r => setTimeout(r, 400));
           continue;
         }
 
@@ -2770,8 +2841,16 @@ window.UniversalSolver = {
 
           updateStatus?.(`[Submit] Advancing to Q${currentQNum + 1}…`);
           window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39, bubbles: true }));
-          document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', code: 'ArrowRight', keyCode: 39, bubbles: true }));
-          await new Promise(r => setTimeout(r, 1600));
+          const startQNum = currentQNum;
+          let navWaited = 0;
+          while (navWaited < 2500 && isRunningCallback()) {
+            await new Promise(r => setTimeout(r, 150));
+            navWaited += 150;
+            const currentHeader = document.body.innerText.match(/Question\s+(\d+)\s*(?:\/|\bof\b)\s*(\d+)/i);
+            const newQNum = currentHeader ? parseInt(currentHeader[1], 10) : startQNum;
+            if (newQNum > startQNum) break;
+          }
+          await new Promise(r => setTimeout(r, 400));
 
           const postMatch = document.body.innerText.match(/Question\s+(\d+)\s*(?:\/|\bof\b)\s*(\d+)/i);
           const postQNum = postMatch ? parseInt(postMatch[1], 10) : currentQNum;
