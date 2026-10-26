@@ -237,12 +237,16 @@ window.AIEngine = {
       `   - In contingency / classification tables, match the exact cell corresponding to the row and column specified in the question.\n\n` +
       `2. CONDITIONAL PROPORTION & PROBABILITY (CRITICAL RULE):\n` +
       `   - If asked "What proportion/percentage of [Group X] are [Category Y]?", the DENOMINATOR is ALWAYS the TOTAL of [Group X] (NOT the overall grand total)!\n` +
-      `   - Example: "proportion of students of good economic conditions that are borderline" -> Denominator is total students in good economic conditions.\n` +
-      `   - Example: "percentage of average students that are in good economic conditions" -> Denominator is total average students.\n` +
+      `   - Example: "proportion of students of good economic conditions that are borderline" -> Denominator is total students in good economic conditions (row sum).\n` +
+      `   - Example: "percentage of average students that are in good economic conditions" -> Denominator is total average students (column sum).\n` +
       `   - If asked for "percentage", multiply the fraction by 100 (e.g. 51.61, NOT 0.52).\n` +
       `   - If asked for "proportion" or "probability", leave as a decimal value between 0 and 1 (e.g. 0.37, NOT 37%).\n\n` +
-      `3. CORRELATION & REGRESSION:\n` +
-      `   - Compute Pearson's correlation coefficient r accurately from data pairs (x, y) using r = [N*sum(xy) - sum(x)*sum(y)] / sqrt([N*sum(x^2) - (sum(x))^2] * [N*sum(y^2) - (sum(y))^2]).\n\n` +
+      `3. STATISTICAL FORMULAS (USE EXACT FORMULA):\n` +
+      `   - Population Standard Deviation: sqrt( sum( (x - mean)^2 ) / N ) [divided by N, NOT N-1]\n` +
+      `   - Sample Standard Deviation: sqrt( sum( (x - mean)^2 ) / (N - 1) ) [divided by N - 1]\n` +
+      `   - Population Covariance: sum( (x - mean_x) * (y - mean_y) ) / N [divided by N]\n` +
+      `   - Sample Covariance: sum( (x - mean_x) * (y - mean_y) ) / (N - 1) [divided by N - 1]\n` +
+      `   - Pearson Correlation Coefficient r: [N*sum(xy) - sum(x)*sum(y)] / sqrt( [N*sum(x^2) - (sum(x))^2] * [N*sum(y^2) - (sum(y))^2] )\n\n` +
       `4. ROUNDING & ACCURACY:\n` +
       (isTwoDecimal ? `   - The problem explicitly requires 2 decimal accuracy. Compute precisely and round to exactly 2 decimal places (e.g., 51.61, 49.50, 0.37, 0.22, 0.47, -0.12).\n\n` : `   - Compute the exact final value and adhere to any precision instructions in the prompt.\n\n`) +
       `5. FINAL CONCLUSION FORMAT:\n` +
