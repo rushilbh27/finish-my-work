@@ -6,8 +6,13 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from datetime import datetime
 
 # Import the outreach fleet runner
-sys.path.insert(0, os.path.dirname(__file__))
-from send_outreach import run_persistent_outreach_fleet, load_sent_log, CONTACTS_PATH
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'scripts'))
+
+try:
+    from send_outreach import run_persistent_outreach_fleet, load_sent_log, CONTACTS_PATH
+except ImportError:
+    from new_send_outreach import run_persistent_outreach_fleet, load_sent_log, CONTACTS_PATH
 
 PORT = int(os.environ.get("PORT", 10000))
 
