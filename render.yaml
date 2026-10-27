@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: peslms-outreach-fleet
+    env: python
+    buildCommand: "pip install --upgrade pip"
+    startCommand: "python3 scripts/render_server.py"
+    plan: free
+    autoDeploy: false
+    healthCheckPath: /health

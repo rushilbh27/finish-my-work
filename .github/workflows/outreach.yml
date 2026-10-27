@@ -1,0 +1,55 @@
+name: 24/7 Automated Email Outreach Fleet
+
+on:
+  schedule:
+    # Runs daily at 00:00 UTC (05:30 AM IST), right after Google resets daily sending quotas
+    - cron: '0 0 * * *'
+    # Second check at 12:00 UTC (05:30 PM IST)
+    - cron: '0 12 * * *'
+  workflow_dispatch:
+    inputs:
+      max_emails:
+        description: 'Maximum emails to dispatch in this run (0 for full 3,000 daily fleet batch)'
+        required: false
+        default: '3000'
+
+permissions:
+  contents: write
+
+jobs:
+  dispatch_fleet:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360 # 6 hours max GitHub Actions limit (fleet batch takes ~2.5 hours)
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: false
+
+      - name: Run 6-Sender Continuous Outreach Batch
+        run: |
+          python3 scripts/send_outreach.py
+        env:
+          PYTHONUNBUFFERED: "1"
+
+      - name: Commit and Push Outreach Progress Log
+        run: |
+          git config --global user.name "Outreach Cloud Bot"
+          git config --global user.email "bot@finish-my-work.internal"
+          
+          if [[ -n $(git status -s scripts/outreach_log.json) ]]; then
+            git add scripts/outreach_log.json
+            git commit -m "chore(outreach): update sent log [skip ci]"
+            git push origin HEAD:${{ github.ref_name }}
+            echo "Outreach log successfully committed and saved to repository."
+          else
+            echo "No new outreach entries logged in this cycle."
+          fi

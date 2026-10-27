@@ -1729,7 +1729,60 @@ window.UniversalSolver = {
       );
     };
 
-    // ── 0. IITM Online Degree / Angular Material Course Sidebar & Tree ──
+    // ── 0. Moodle Course View (.activity-item on edu.practicaleduskills.com & standard Moodle) ──
+    const moodleItems = Array.from(document.querySelectorAll('.activity-item, .activity'));
+    if (moodleItems.length > 0) {
+      // Step A: Auto-click any manual "Mark as done" buttons right now on the course view
+      document.querySelectorAll('button[data-action="toggle-manual-completion"]').forEach(b => {
+        const label = (b.innerText || b.getAttribute('aria-label') || '').trim();
+        if (label.includes('Mark as done') || b.getAttribute('data-toggletype') === 'manual:mark-done') {
+          try { b.click(); } catch(e) {}
+        }
+      });
+
+      // Step B: Auto-trigger view on reading / introduction materials with "To do"
+      moodleItems.forEach(el => {
+        const badge = el.querySelector('[data-region="completion-info"] button, [data-region="completion-info"] .badge')?.innerText || '';
+        if (badge.includes('To do')) {
+          const a = el.querySelector('.activityname a, a.aalink');
+          if (a?.href && (a.href.includes('mod/resource') || a.href.includes('mod/url') || a.href.includes('mod/page'))) {
+            try { fetch(a.href); } catch(e) {}
+          }
+        }
+      });
+
+      // Step C: Collect all pending gradable activities (Quizzes & H5P) that are NOT already Done
+      moodleItems.forEach(el => {
+        const titleEl = el.querySelector('.activityname, .instancename');
+        const fullTitle = (titleEl ? titleEl.innerText : el.innerText).trim();
+        const a = el.querySelector('a[href*="mod/quiz"], a[href*="mod/h5pactivity"], a[href*="mod/assign"], a.aalink');
+        if (!a || !a.href) return;
+
+        const isGradable = a.href.includes('mod/quiz') || a.href.includes('mod/h5pactivity') || a.href.includes('mod/assign');
+        if (!isGradable) return;
+        if (isExcluded(fullTitle)) return;
+
+        // Strict Completion Check: Skip if already marked Done
+        const badgeEl = el.querySelector('[data-region="completion-info"] button, [data-region="completion-info"] .badge, button[data-action="toggle-manual-completion"]');
+        const badgeText = badgeEl ? (badgeEl.innerText || badgeEl.getAttribute('aria-label') || '').trim() : '';
+        const isDone = /Done/i.test(badgeText) && !/Mark as done/i.test(badgeText);
+
+        if (isDone) return; // Skip already completed assignments!
+
+        if (!seen.has(a.href)) {
+          seen.add(a.href);
+          links.push({
+            url: a.href,
+            title: fullTitle.split('\n')[0].trim(),
+            type: a.href.includes('mod/h5pactivity') ? 'H5P' : 'Quiz'
+          });
+        }
+      });
+
+      if (links.length > 0) return links;
+    }
+
+    // ── 1. IITM Online Degree / Angular Material Course Sidebar & Tree ──
     const iitmItems = Array.from(document.querySelectorAll(
       'a, [role="listitem"], [role="treeitem"], mat-list-item, .mat-mdc-list-item, div[class*="nav-item"], div[class*="sidebar"] div, div[class*="tree-node"], div[class*="assignment"]'
     )).filter(el => {
@@ -1762,19 +1815,6 @@ window.UniversalSolver = {
     });
 
     if (links.length > 0) return links;
-
-    // ── 1. Moodle activity links ──
-    const moodleActivities = document.querySelectorAll('.activity a.aalink, .activityinstance a, .activity-item a[href*="mod/quiz"], .activity-item a[href*="mod/assign"]');
-    moodleActivities.forEach(a => {
-      if (a.href && (a.href.includes('mod/quiz') || a.href.includes('mod/assign') || a.href.includes('mod/workshop'))) {
-        const title = a.innerText?.trim() || 'Assignment';
-        if (isExcluded(title)) return;
-        if (!seen.has(a.href)) {
-          seen.add(a.href);
-          links.push({ url: a.href, title: title });
-        }
-      }
-    });
 
     // ── 2. Canvas assignment links ──
     const canvasActivities = document.querySelectorAll('.assignment a, .ig-title a, .module-item-title a');
@@ -1811,13 +1851,39 @@ window.UniversalSolver = {
   // Find course links on a dashboard/home page
   findCourseLinks() {
     const links = [];
-    // Moodle dashboard course list
-    const moodleCourses = document.querySelectorAll('.course-listitem a, .coursename a, .course_title a, a[href*="course/view"]');
+    const seen = new Set();
+    // Moodle dashboard course list & all enrolled courses
+    const moodleCourses = document.querySelectorAll('.course-listitem a, .coursename a, .course_title a, a[href*="course/view.php?id="], [data-region="course-card"] a');
     moodleCourses.forEach(a => {
-      if (a.href && a.href.includes('course/view')) {
-        links.push({ url: a.href, title: a.innerText?.trim() || 'Course' });
+      if (a.href && a.href.includes('course/view.php?id=')) {
+        const cleanUrl = a.href.split('&')[0];
+        if (!seen.has(cleanUrl)) {
+          seen.add(cleanUrl);
+          links.push({ url: cleanUrl, title: a.innerText?.trim() || 'Course' });
+        }
       }
     });
+
+    // Default enrolled course list fallback on edu.practicaleduskills.com
+    if (window.location.hostname.includes('edu.practicaleduskills.com') && links.length === 0) {
+      const defaultCourses = [
+        { id: 22, title: 'Aspects of Marketing' },
+        { id: 24, title: 'Budgeting and Personal Finance' },
+        { id: 20, title: 'Digital Marketing Fundamental' },
+        { id: 69, title: 'Environmental Education' },
+        { id: 26, title: 'Communication And Professional Skills' },
+        { id: 25, title: 'Fundamental Of Business & Management' },
+        { id: 18, title: 'Gen AI Foundation' },
+        { id: 68, title: 'Indian Knowledge System' }
+      ];
+      defaultCourses.forEach(c => {
+        const url = `https://edu.practicaleduskills.com/course/view.php?id=${c.id}`;
+        if (!seen.has(url)) {
+          seen.add(url);
+          links.push({ url, title: c.title });
+        }
+      });
+    }
     // Canvas dashboard
     const canvasCourses = document.querySelectorAll('.ic-DashboardCard__link, a[href*="/courses/"]');
     canvasCourses.forEach(a => {
@@ -3038,6 +3104,37 @@ window.UniversalSolver = {
 
       const modeTag = state.mode === 'allcourses' ? '[All Courses]' : '[Course Batch]';
 
+      // ── Page State 0: H5P Interactive Activity (Flashcards / Crosswords) ──
+      if (window.H5PSolver && window.H5PSolver.hasH5P()) {
+        const badgeEl = document.querySelector('[data-region="completion-info"] button, [data-region="completion-info"] .badge, button[data-action="toggle-manual-completion"]');
+        const badgeText = badgeEl ? (badgeEl.innerText || badgeEl.getAttribute('aria-label') || '').trim() : '';
+        const isAlreadyDone = /Done/i.test(badgeText) && !/Mark as done/i.test(badgeText);
+
+        if (isAlreadyDone) {
+          updateStatus?.(`${modeTag} H5P activity already complete. Advancing to next…`);
+          await new Promise(r => setTimeout(r, 1000));
+          await this.advanceBatchAssignment(updateStatus);
+          return;
+        }
+
+        updateStatus?.(`${modeTag} Solving H5P interactive activity…`);
+        const h5pRes = await window.H5PSolver.solve(updateStatus);
+
+        // Toggle manual completion button if present
+        const manualBtn = document.querySelector('button[data-action="toggle-manual-completion"]');
+        if (manualBtn && (manualBtn.innerText.includes('Mark as done') || manualBtn.getAttribute('data-toggletype') === 'manual:mark-done')) {
+          try { manualBtn.click(); } catch(e) {}
+          await new Promise(r => setTimeout(r, 600));
+        }
+
+        if (h5pRes?.success) {
+          updateStatus?.(`${modeTag} H5P activity completed! Advancing to next assignment…`);
+          await new Promise(r => setTimeout(r, 1500));
+          await this.advanceBatchAssignment(updateStatus);
+          return;
+        }
+      }
+
       // ── Page State 1: Active Quiz Attempt (questions on page) ──
       const questions = this.detectAllQuestions();
       if (questions.length > 0) {
@@ -3051,7 +3148,7 @@ window.UniversalSolver = {
         await this._runSubmitMode(updateStatus, isRunningCallback);
 
         // After submit mode finishes or submits:
-        if (this.isQuizComplete()) {
+        if (this.isQuizComplete() || window.location.href.includes('/mod/quiz/review.php')) {
           if (state.mode === 'submit') {
             updateStatus?.('🎉 Quiz completed and submitted!');
             await chrome.storage.local.remove(['autopilotBatchState']);
