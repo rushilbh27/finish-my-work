@@ -210,10 +210,18 @@ window.UniversalSolver = {
       if (radioBtn) {
         radioBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
         radioBtn.focus();
-        radioBtn.click();
+
+        const ariaLabelEl = radioBtn.getAttribute('aria-labelledby') ? document.getElementById(radioBtn.getAttribute('aria-labelledby')) : null;
+        const parentOption = radioBtn.closest('.r0, .r1, li, label, .option, .quiz-options li, mat-radio-button, [role="radio"]') || radioBtn;
+        const clickTargets = [target?.labelEl, ariaLabelEl, parentOption, radioBtn].filter(Boolean);
+        const uniqueTargets = [...new Set(clickTargets)];
+
+        for (const t of uniqueTargets) {
+          try { t.click?.(); } catch (e) {}
+        }
+
         radioBtn.setAttribute('aria-checked', 'true');
         radioBtn.setAttribute('data-state', 'checked');
-        if (target) target.checked = true;
         await new Promise(r => setTimeout(r, 80));
 
         if (radioBtn.tagName === 'INPUT') {
@@ -222,7 +230,8 @@ window.UniversalSolver = {
           radioBtn.dispatchEvent(new Event('change', { bubbles: true }));
         }
 
-        q.isAnswered = true;
+        if (target) target.checked = radioBtn.checked;
+        q.isAnswered = radioBtn.checked;
         if (q.container) {
           q.container.style.transition = 'box-shadow 0.3s ease';
           q.container.style.boxShadow = '0 0 16px rgba(37, 99, 235, 0.4)';
@@ -380,13 +389,15 @@ window.UniversalSolver = {
     const list = [];
 
     // ── 0. IITM Online Degree, QuizPractice.space & Universal Question Portals ──
-    const isIITMOrQuizPractice = 
+    const hasMoodleQue = document.querySelector('.que') !== null;
+    const isIITMOrQuizPractice = !hasMoodleQue && (
       document.querySelector('app-root, .mat-typography, [class*="app-shell"], mat-radio-group, mat-radio-button, mat-checkbox') !== null ||
       document.title.includes('IITM') || 
       document.title.includes('QuizPractice') || 
       document.title.includes('Graded Assignment') ||
       document.title.includes('Question Paper') ||
-      /onlinedegree\.iitm\.ac\.in|study\.iitm\.ac\.in|seek\.|quizpractice|iitmbs|pyq/i.test(window.location.hostname);
+      /onlinedegree\.iitm\.ac\.in|study\.iitm\.ac\.in|seek\.|quizpractice|iitmbs|pyq/i.test(window.location.hostname)
+    );
 
     // Strategy A: Explicit Question Heading Discovery (e.g. 'Question 8 / 17', 'Question 1: 6406531951224', 'Question 2: ...')
     const headingElements = Array.from(document.querySelectorAll('.q-header, [class*="q-header"], [class*="question-header"], [class*="question-title"], [class*="question-meta"], h1, h2, h3, h4, h5, div, span, p, b, strong')).filter(el => {
@@ -426,7 +437,7 @@ window.UniversalSolver = {
       });
     }
 
-    if (containers.length > 0 || isIITMOrQuizPractice) {
+    if (!hasMoodleQue && (containers.length > 0 || isIITMOrQuizPractice)) {
       // 0.1 Extract common reference instructions / notation pane (left column)
       let iitmCommonContext = '';
       const commonCandidate = Array.from(document.querySelectorAll('div, section, aside, app-common-data, [class*="common"], [class*="instruction"], [class*="notations"]')).find(el => {
@@ -544,8 +555,9 @@ window.UniversalSolver = {
 
         // Check A: Radio buttons (MCQ)
         const radioEls = Array.from(q.querySelectorAll('mat-radio-button, .mat-mdc-radio-button, [role="radio"], input[type="radio"]')).filter(r => {
+          if (r.value === '-1') return false;
           const lbl = r.innerText || r.getAttribute('aria-label') || r.closest('label')?.innerText || '';
-          return !lbl.toLowerCase().includes('clear selection');
+          return !/clear\s*(my\s*choice|selection)/i.test(lbl);
         });
         const uniqueRadios = radioEls.filter(el => {
           if (el.tagName === 'INPUT' && el.closest('mat-radio-button, .mat-mdc-radio-button')) return false;
@@ -581,13 +593,14 @@ window.UniversalSolver = {
             const cleanText = labelText.replace(/^[A-Za-z][\.\)\:\-]\s*/i, '').trim();
 
             const liParent = r.closest('li, [class*="option"]');
-            const isChecked = (innerInput && innerInput.checked) || 
+            const isChecked = (r.value !== '-1') && (
+                              (innerInput && innerInput.checked) || 
                               r.checked ||
                               r.classList.contains('mat-mdc-radio-checked') || 
                               r.classList.contains('mat-radio-checked') ||
                               r.getAttribute('aria-checked') === 'true' ||
                               r.getAttribute('data-state') === 'checked' ||
-                              (liParent && (liParent.classList.contains('selected') || liParent.classList.contains('active') || liParent.classList.contains('correct') || liParent.classList.contains('wrong')));
+                              (liParent && (liParent.classList.contains('selected') || liParent.classList.contains('active') || liParent.classList.contains('correct') || liParent.classList.contains('wrong'))));
 
             const optId = r.getAttribute('value') || r.value || innerInput?.value || r.id?.replace(/^r[12]\d*/, '') || null;
 
@@ -621,8 +634,9 @@ window.UniversalSolver = {
 
         // Check B: Checkboxes (MSQ / Multi-Select)
         const checkboxEls = Array.from(q.querySelectorAll('mat-checkbox, .mat-mdc-checkbox, [role="checkbox"], input[type="checkbox"]')).filter(c => {
+          if (c.value === '-1') return false;
           const lbl = c.innerText || c.getAttribute('aria-label') || c.closest('label')?.innerText || '';
-          return !lbl.toLowerCase().includes('clear selection');
+          return !/clear\s*(my\s*choice|selection)/i.test(lbl);
         });
         const uniqueCheckboxes = checkboxEls.filter(el => {
           if (el.tagName === 'INPUT' && el.closest('mat-checkbox, .mat-mdc-checkbox')) return false;
@@ -852,21 +866,47 @@ window.UniversalSolver = {
 
         // Check D: Radios / Checkboxes (MCQ / Multi-Choice)
         const inputs = Array.from(q.querySelectorAll('input[type="radio"], input[type="checkbox"]')).filter(r => {
-          const lbl = q.querySelector(`label[for="${r.id}"]`)?.innerText?.trim() || r.parentElement?.innerText?.trim() || '';
-          return !lbl.toLowerCase().includes('clear my choice') && r.value !== '-1';
+          if (r.value === '-1') return false;
+          const ariaLabelId = r.getAttribute('aria-labelledby');
+          const ariaLabelEl = ariaLabelId ? document.getElementById(ariaLabelId) : null;
+          const lbl = q.querySelector(`label[for="${r.id}"]`)?.innerText?.trim() || 
+                      ariaLabelEl?.innerText?.trim() || 
+                      r.parentElement?.innerText?.trim() || '';
+          return !/clear\s*(my\s*choice|selection)/i.test(lbl);
         });
 
         if (inputs.length >= 2) {
           const isMulti = inputs.some(i => i.type === 'checkbox') || qText.toLowerCase().includes('select one or more');
           const options = inputs.map((r, i) => {
-            const lbl = q.querySelector(`label[for="${r.id}"]`) || r.parentElement;
-            const cleanText = (lbl?.innerText || '').replace(/^[a-z0-9][\.\)\:\-]\s*/i, '').trim();
+            const ariaLabelId = r.getAttribute('aria-labelledby');
+            const ariaLabelEl = ariaLabelId ? document.getElementById(ariaLabelId) : null;
+            const labelEl = ariaLabelEl || q.querySelector(`label[for="${r.id}"]`) || r.closest('label') || r.parentElement?.querySelector('[data-region="answer-label"]') || r.parentElement;
+
+            let letter = String.fromCharCode(65 + i);
+            let cleanText = '';
+
+            if (ariaLabelEl) {
+              const ansNum = ariaLabelEl.querySelector('.answernumber');
+              if (ansNum) {
+                const match = ansNum.innerText.match(/([a-zA-Z0-9])/);
+                if (match) letter = match[1].toUpperCase();
+              }
+              const fillEl = ariaLabelEl.querySelector('.flex-fill');
+              cleanText = (fillEl ? fillEl.innerText : ariaLabelEl.innerText).replace(/^[a-z0-9][\.\)\:\-]\s*/i, '').trim();
+            } else {
+              const rawText = labelEl?.innerText || '';
+              const match = rawText.match(/^([a-z0-9])[\.\)\:\-]\s*/i);
+              if (match) letter = match[1].toUpperCase();
+              cleanText = rawText.replace(/^[a-z0-9][\.\)\:\-]\s*/i, '').trim();
+            }
+
             return {
+              id: r.value,
               element: r,
-              labelEl: lbl,
-              letter: String.fromCharCode(65 + i),
+              labelEl: labelEl || r,
+              letter: letter,
               text: cleanText,
-              checked: r.checked
+              checked: r.checked && r.value !== '-1'
             };
           });
 
@@ -876,7 +916,7 @@ window.UniversalSolver = {
             text: qText,
             image: image,
             options: options,
-            isAnswered: options.some(o => o.checked)
+            isAnswered: options.some(o => o.checked && o.element?.value !== '-1')
           });
           continue;
         }
@@ -2255,28 +2295,36 @@ window.UniversalSolver = {
       radioBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
       radioBtn.focus();
 
-      const parentOption = radioBtn.closest('li, label, .option, .quiz-options li, mat-radio-button, [role="radio"]') || radioBtn;
-      ['pointerdown', 'mousedown', 'mouseup', 'click'].forEach(evt => {
-        try {
-          parentOption.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window }));
-          if (parentOption !== radioBtn) {
-            radioBtn.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window }));
-          }
-        } catch (e) {}
-      });
-      try { radioBtn.click(); } catch (e) {}
-      try { if (parentOption !== radioBtn) parentOption.click(); } catch (e) {}
+      const ariaLabelEl = radioBtn.getAttribute('aria-labelledby') ? document.getElementById(radioBtn.getAttribute('aria-labelledby')) : null;
+      const parentOption = radioBtn.closest('.r0, .r1, li, label, .option, .quiz-options li, mat-radio-button, [role="radio"]') || radioBtn;
+      const clickTargets = [target.labelEl, ariaLabelEl, parentOption, radioBtn].filter(Boolean);
+      const uniqueTargets = [...new Set(clickTargets)];
+
+      for (const t of uniqueTargets) {
+        ['pointerdown', 'mousedown', 'mouseup', 'click'].forEach(evt => {
+          try { t.dispatchEvent(new MouseEvent(evt, { bubbles: true, cancelable: true, view: window })); } catch (e) {}
+        });
+        try { t.click?.(); } catch (e) {}
+      }
 
       if (radioBtn.tagName === 'INPUT') {
         radioBtn.checked = true;
         radioBtn.dispatchEvent(new Event('input', { bubbles: true }));
         radioBtn.dispatchEvent(new Event('change', { bubbles: true }));
       }
-      const liParent = radioBtn.closest('li');
+
+      // Re-verify radio was actually checked
+      if (radioBtn.tagName === 'INPUT' && !radioBtn.checked) {
+        radioBtn.checked = true;
+        radioBtn.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+
+      const liParent = radioBtn.closest('li, .r0, .r1');
       if (liParent) {
         liParent.classList.add('selected');
       }
-      q.isAnswered = true;
+      target.checked = radioBtn.checked;
+      q.isAnswered = radioBtn.checked;
       await new Promise(r => setTimeout(r, 200));
 
       q.container.style.transition = 'box-shadow 0.3s ease';
@@ -2497,7 +2545,7 @@ window.UniversalSolver = {
         updateStatus?.(`Q${qNum} already answered. Advancing…`);
         continue;
       }
-      if (q.options && q.options.some(o => o.element?.checked || o.element?.getAttribute('aria-checked') === 'true' || o.labelEl?.closest('.mat-radio-checked, .mat-mdc-radio-checked'))) {
+      if (q.options && q.options.some(o => (o.element?.value !== '-1' && o.element?.value !== '') && (o.element?.checked || o.element?.getAttribute('aria-checked') === 'true' || o.labelEl?.closest('.mat-radio-checked, .mat-mdc-radio-checked')))) {
         q.isAnswered = true;
         updateStatus?.(`Q${qNum} choice already selected. Advancing…`);
         continue;
@@ -2547,10 +2595,8 @@ window.UniversalSolver = {
         }
 
         if (res.message && (res.message.includes('Unsupported') || res.message.includes('Could not match'))) {
-          updateStatus?.(`⚠️ Q${qNum}: ${res.message}. Skipping to next…`);
-          q.isAnswered = true;
-          q.skipped = true;
-          break;
+          updateStatus?.(`⚠️ Q${qNum}: ${res.message}. Auto-Pilot paused.`);
+          return { questionsFound: true, allAnswered: false, stopped: true, error: res.message };
         }
 
         if (attempts >= 2) {
@@ -2568,8 +2614,24 @@ window.UniversalSolver = {
       await new Promise(r => setTimeout(r, 600));
     }
 
-    // Verify
-    const unanswered = this.detectAllQuestions().filter(q => !q.isAnswered);
+    // Strict DOM verification: Check if an answer is ACTUALLY checked/entered in the DOM
+    const unanswered = this.detectAllQuestions().filter(q => {
+      if (q.type === 'mcq') {
+        const checkedInput = q.container?.querySelector('input[type="radio"]:checked:not([value="-1"])');
+        if (checkedInput) return false;
+        return !q.options?.some(o => o.checked || (o.element?.checked && o.element?.value !== '-1'));
+      }
+      if (q.type === 'multichoice') {
+        const checkedInput = q.container?.querySelector('input[type="checkbox"]:checked:not([value="-1"])');
+        if (checkedInput) return false;
+        return !q.options?.some(o => o.checked || (o.element?.checked && o.element?.value !== '-1'));
+      }
+      if (q.type === 'text') {
+        return !(q.textInput && (q.textInput.value || q.textInput.innerText || '').trim().length > 0);
+      }
+      return !q.isAnswered;
+    });
+
     return { questionsFound: true, allAnswered: unanswered.length === 0, unansweredCount: unanswered.length };
   },
 
@@ -2583,11 +2645,25 @@ window.UniversalSolver = {
     while (isRunningCallback() && pagesProcessed < 50) {
       pagesProcessed++;
 
-      // Check current question & total questions from header (e.g. "Question 5 / 17" or "Question 1 of 25")
-      const headerMatch = document.body.innerText.match(/Question\s+(\d+)\s*(?:\/|\bof\b)\s*(\d+)/i);
-      const currentQNum = headerMatch ? parseInt(headerMatch[1], 10) : pagesProcessed;
-      const totalQNum = headerMatch ? parseInt(headerMatch[2], 10) : null;
-      const label = totalQNum ? `Question ${currentQNum} of ${totalQNum}` : `Page ${pagesProcessed}`;
+      // Check current question & total questions from header, title or question element
+      let currentQNum = pagesProcessed;
+      let totalQNum = null;
+
+      const titleMatch = document.title.match(/page\s+(\d+)\s+of\s+(\d+)/i);
+      if (titleMatch) {
+        currentQNum = parseInt(titleMatch[1], 10);
+        totalQNum = parseInt(titleMatch[2], 10);
+      } else {
+        const headerMatch = document.body.innerText.match(/Question\s+(\d+)\s*(?:\/|\bof\b)\s*(\d+)/i);
+        if (headerMatch) {
+          currentQNum = parseInt(headerMatch[1], 10);
+          totalQNum = parseInt(headerMatch[2], 10);
+        } else {
+          const qnoEl = document.querySelector('.qno');
+          if (qnoEl) currentQNum = parseInt(qnoEl.innerText.trim(), 10) || pagesProcessed;
+        }
+      }
+      const label = totalQNum ? `Question ${currentQNum} of ${totalQNum}` : `Page ${currentQNum}`;
 
       updateStatus?.(`[Draft] Scanning ${label}…`);
       let result = await this._solveAllOnPage(updateStatus, isRunningCallback);
